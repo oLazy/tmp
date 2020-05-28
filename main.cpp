@@ -146,11 +146,11 @@ private:
 
 struct model{
     std::vector<node> nodes;
-    node getNode(int i) const {return nodes[i];}
+    node operator[](int i) const {return nodes[i];}
     node getNode(double depth) {
-        for(int i=1; i<nodes.size();i++){
-            if(nodes[i].params[paramType::depth].getValue()>depth &&
-               nodes[i-1].params[paramType::depth].getValue()<depth){
+        for(int i=0; i<nodes.size()-1;i++){
+            if(nodes[i+1].params[paramType::depth].getValue()>depth &&
+               nodes[i].params[paramType::depth].getValue()<depth){
                 return nodes[i];
             }
         }
@@ -184,8 +184,8 @@ struct model{
                 if (x.params[p].getValue() < prior[p].first || x.params[p].getValue() > prior[p].second) {
                     return false;
                 }
-                return true;
             }
+            return true;
         };
         return std::all_of(nodes.begin(),nodes.end(),params_in_prior);
     }

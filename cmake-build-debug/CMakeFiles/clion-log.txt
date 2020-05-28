@@ -1,4 +1,0 @@
-"/Users/eric/Library/Application Support/JetBrains/Toolbox/apps/CLion/ch-0/201.7223.86/CLion.app/Contents/bin/cmake/mac/bin/cmake" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=/usr/bin/clang -DCMAKE_CXX_COMPILER=/usr/bin/clang++ -G "CodeBlocks - Unix Makefiles" /Users/eric/CLionProjects/mt1danisModelParams
--- Configuring done
--- Generating done
--- Build files have been written to: /Users/eric/CLionProjects/mt1danisModelParams/cmake-build-debug
