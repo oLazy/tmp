@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.10)
 project(mt1danisModelParams)
 find_package(Boost REQUIRED serialization)
 set(CMAKE_CXX_STANDARD 14)
