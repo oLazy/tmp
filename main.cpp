@@ -5,19 +5,31 @@
 #include <boost/serialization/map.hpp>
 #include <vector>
 #include <boost/serialization/vector.hpp>
+#include <boost/random.hpp>
 #include <fstream>
 #include <cmath>
 #include <numeric>
 #include <exception>
 
+int seed{23};
+boost::random::mt19937 gen{static_cast<std::uint32_t>(seed)};
+boost::random::normal_distribution<double> rn;
 typedef std::pair<double, double> limits ;
 enum paramType{begin=0, depth=begin, sigmaMean, sigmaRatio, beta, end};
+std::map<int,std::string> param_map{{0,"depth"},{1,"mean"},{2,"ratio"},{3,"beta"}};
 std::map<int,std::pair<double,double> > prior;
 void initPrior(limits depth, limits mean, limits ratio, limits beta){
     prior[paramType::depth] = depth;
     prior[paramType::sigmaMean] = mean;
     prior[paramType::sigmaRatio] = ratio;
     prior[paramType::beta] = beta;
+}
+std::map<int,double> proposal; //stores the sd for perturbations
+void initProposal(limits depth, limits mean, limits ratio, limits beta, double scale){
+    proposal[paramType::depth] = (depth.second - depth.first)/scale;
+    proposal[paramType::sigmaMean] = (mean.second - mean.first)/scale;
+    proposal[paramType::sigmaRatio] = (ratio.second - ratio.first)/scale;
+    proposal[paramType::beta] = (beta.second - beta.first)/scale;
 }
 class Parameter{
     paramType type;
@@ -146,7 +158,9 @@ private:
 
 struct model{
     std::vector<node> nodes;
+    std::vector<double> _h;
     node operator[](int i) const {return nodes[i];}
+    node& operator[](int i) {return nodes[i];}
     node getNode(double depth) {
         for(int i=0; i<nodes.size()-1;i++){
             if(nodes[i+1].params[paramType::depth].getValue()>depth &&
@@ -176,7 +190,6 @@ struct model{
         }
         return true;
     }
-
     bool isInPrior() {
 
         auto params_in_prior = [](node x){
@@ -189,50 +202,84 @@ struct model{
         };
         return std::all_of(nodes.begin(),nodes.end(),params_in_prior);
     }
+    void calc_params(){
 
+    }
+
+    friend std::ostream &operator<<(std::ostream &os, const model &model) {
+        int node_id = 0;
+        for (auto n : model.nodes) {
+            for (int pt = paramType::begin; pt != paramType::end; pt++) {
+                os << "[" << node_id << "]" << param_map[pt] << ":" << n.params[pt] << "\n";
+            }
+            node_id++;
+        }
+        return os;
+    }
 };
+model perturb(model const &m0, int node_id, paramType pt){
+    model mp=m0;
+    if(mp[node_id].params[pt].isActive()) {
+        auto ran = rn(gen);
+        std::cerr << "ran = " << ran << "\n"; // log the random number
+        auto p_i = mp[node_id].params[pt].getValue() + ran*proposal[pt];
+        mp[node_id].params[pt].setValue(p_i);
+    }
+    return mp;
+}
 
 int main() {
+    // initialize prior and proposal sd
     initPrior({0.,410000.}, {-5,2}, {0,-3}, {-90,90});
-    std::cout << "Hello, World!" << std::endl;
-//    Parameter p(paramType::sigmaMean, true, 3.1);
+    initProposal({0.,410000.}, {-5,2}, {0,-3}, {-90,90},10.);
+    std::cout << proposal[0] << std::endl;
+    //    Parameter p(paramType::sigmaMean, true, 3.1);
 //    std::ofstream os("aTestNode.txt");
 
 //    node n(0,0.7);
-
-    std::ifstream is("aTestNode.txt");
-//    boost::archive::text_oarchive oa(os);
-    boost::archive::text_iarchive ia(is);
-
-//    oa << n;
-    node q;
-    ia >> q;
+//
+//    std::ifstream is("aTestNode.txt");
+////    boost::archive::text_oarchive oa(os);
+//    boost::archive::text_iarchive ia(is);
+//
+////    oa << n;
+//    node q;
+//    ia >> q;
 //    std::cout << q << std::endl;
 //    if (q.getType()==paramType::sigmaMean){
 //        std::cout << "evviva!\n";
 //    }
 
-    node p{q};
+//    node p{q};
+
+//
+//    // modify all active parameters
+//    for (int type = paramType::begin; type!=paramType::end; type++) {
+//        if (p.params[type].isActive()) {
+//            p.params[type].setValue(p.params[type].getValue() + 1.0);
+//            // do metropolis hastings
+//        }
+//    }
 
 
-    // modify all active parameters
-    for (int type = paramType::begin; type!=paramType::end; type++) {
-        if (p.params[type].isActive()) {
-            p.params[type].setValue(p.params[type].getValue() + 1.0);
-            // do metropolis hastings
-        }
-    }
-    for (int pt=paramType::begin; pt!=paramType::end; pt++){
-        std::cout << "q: " << q.params[pt] <<"\n";
-        std::cout << "p: " << p.params[pt] <<"\n";
-    }
+//    for (int pt=paramType::begin; pt!=paramType::end; pt++){
+//        std::cout << "q: " << q.params[pt] <<"\n";
+//        std::cout << "p: " << p.params[pt] <<"\n";
+//    }
     model m;
     m.nodes.push_back(node(0,1));
     m.nodes.push_back(node(1,2));
     m.nodes.push_back(node(3,3));
     m.nodes.push_back(node(6,4));
 
-    std::cout << m.isValid() << "\n";
+    std::cout << m << std::endl;
+    std::cout << std::endl;
+    int node_id = 1; // the node I am going to perturb
+    model m2 = perturb(m,node_id,paramType::depth);
+
+    std::cout << m2 << std::endl;
+
+//    std::cout << m.isValid() << "\n";
 //    oa << p;
     return 0;
 }
