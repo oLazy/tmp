@@ -157,6 +157,19 @@ private:
 };
 
 struct model{
+    model() = default;
+    model (const model& m){
+        for(const auto& n:m.nodes){
+            this->nodes.push_back(n);
+        }
+    } // implement copy constructor, it must copy the nodes but not other fields.
+    model& operator=(const model& m){
+        model res;
+        for(const auto& n:m.nodes){
+            this->nodes.push_back(n);
+        }
+        return *this;
+    } // implement copy assignment, it must copy the nodes but not other fields.
     std::vector<node> nodes;
     std::vector<double> _h;
     node operator[](int i) const {return nodes[i];}
@@ -231,7 +244,7 @@ model perturb(model const &m0, int node_id, paramType pt){
 int main() {
     // initialize prior and proposal sd
     initPrior({0.,410000.}, {-5,2}, {0,-3}, {-90,90});
-    initProposal({0.,410000.}, {-5,2}, {0,-3}, {-90,90},10.);
+    initProposal({0.,410000.}, {-5,2}, {0,-3}, {-90,90},100.);
     std::cout << proposal[0] << std::endl;
     //    Parameter p(paramType::sigmaMean, true, 3.1);
 //    std::ofstream os("aTestNode.txt");
@@ -272,11 +285,10 @@ int main() {
     m.nodes.push_back(node(3,3));
     m.nodes.push_back(node(6,4));
 
-    std::cout << m << std::endl;
-    std::cout << std::endl;
     int node_id = 1; // the node I am going to perturb
     model m2 = perturb(m,node_id,paramType::depth);
-
+    std::cout << m << std::endl;
+    std::cout << std::endl;
     std::cout << m2 << std::endl;
 
 //    std::cout << m.isValid() << "\n";
