@@ -1,0 +1,10 @@
+model life-cycle step                                                   model status
+creation (via nodes insertion OR copy construction OR copy assignment)  valid
+perturbation                                                            unknown
+parameters computation                                                  unknown
+check if in prior                                                       unknown
+validation (check model in prior AND min layer thickness)               valid/not-valid
+if (valid):
+    usage                                                               valid
+else:
+    discard                                                             not-valid

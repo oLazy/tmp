@@ -196,7 +196,7 @@ struct model{
         }
         if(std::any_of(diff.begin()++,diff.end(),[](double x){return x<0;})){
             for (auto d=diff.begin()++;d!=diff.end();d++) {
-                std::cout << "ifany=true loop\n";
+                std::cout << "if any=true loop\n";
                 std::cout << *d << "\n";
             }
             return false;
@@ -218,7 +218,13 @@ struct model{
         return std::all_of(nodes.begin(),nodes.end(),params_in_prior);
     }
     void calc_params(){
-
+        for (int i=0; i<nodes.size()-1; i++){
+            auto h0=nodes[i].params[paramType::depth].getValue();
+            auto h1=nodes[i+1].params[paramType::depth].getValue();
+            auto thick=h1-h0;
+            _h.push_back(thick);
+        }
+        _h.push_back(0);
     }
 
     friend std::ostream &operator<<(std::ostream &os, const model &model) {
