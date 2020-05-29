@@ -207,9 +207,11 @@ struct model{
 
         auto params_in_prior = [](node x){
             for (int p = paramType::begin; p != paramType::end; p++) {
-                if (x.params[p].getValue() < prior[p].first || x.params[p].getValue() > prior[p].second) {
-                    return false;
-                }
+                if(x.params[p].isActive()) {
+                    if (x.params[p].getValue() < prior[p].first || x.params[p].getValue() > prior[p].second) {
+                        return false;
+                    }
+                } // only check for active parameter, the inactive parameters are set to nan.
             }
             return true;
         };
@@ -243,8 +245,8 @@ model perturb(model const &m0, int node_id, paramType pt){
 
 int main() {
     // initialize prior and proposal sd
-    initPrior({0.,410000.}, {-5,2}, {0,-3}, {-90,90});
-    initProposal({0.,410000.}, {-5,2}, {0,-3}, {-90,90},100.);
+    initPrior({0.,410000.}, {-5,2}, {-3,0}, {-90,90});
+    initProposal({0.,410000.}, {-5,2}, {-3,0}, {-90,90},100.);
     std::cout << proposal[0] << std::endl;
     //    Parameter p(paramType::sigmaMean, true, 3.1);
 //    std::ofstream os("aTestNode.txt");
@@ -281,10 +283,11 @@ int main() {
 //    }
     model m;
     m.nodes.push_back(node(0,1));
-    m.nodes.push_back(node(1,2));
-    m.nodes.push_back(node(3,3));
-    m.nodes.push_back(node(6,4));
+    m.nodes.push_back(node(1,-2));
+    m.nodes.push_back(node(3,-3, -2, -45.2));
+    m.nodes.push_back(node(6,-4));
 
+    if (m.isInPrior()){std::cout << "m is in prior";}
     int node_id = 1; // the node I am going to perturb
     model m2 = perturb(m,node_id,paramType::depth);
     std::cout << m << std::endl;
