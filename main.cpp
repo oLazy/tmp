@@ -171,7 +171,7 @@ struct model{
         return *this;
     } // implement copy assignment, it must copy the nodes but not other fields.
     std::vector<node> nodes;
-    std::vector<double> _h;
+    std::vector<double> _h, _al, _at, _blt;
     node operator[](int i) const {return nodes[i];}
     node& operator[](int i) {return nodes[i];}
     node getNode(double depth) {
@@ -223,6 +223,18 @@ struct model{
             auto h1=nodes[i+1].params[paramType::depth].getValue();
             auto thick=h1-h0;
             _h.push_back(thick);
+            auto sm=pow(10.,nodes[i].params[paramType::sigmaMean].getValue()); // 10^param, sampling in log space
+            if(nodes[i].params[paramType::sigmaRatio].isActive()){
+                auto sr=pow(10.,nodes[i].params[paramType::sigmaRatio].getValue()); // 10^param, sampling in log space
+                auto beta=nodes[i].params[paramType::beta].getValue()*M_PI/180.; // angle stored in deg, used in rads
+                _al.push_back(2*sm*sr/(1.+sr));
+                _at.push_back(2*sm/(1.+sr));
+                _blt.push_back(beta);
+            }else{
+                _al.push_back(sm);
+                _at.push_back(sm);
+                _blt.push_back(0);
+            }
         }
         _h.push_back(0);
     }
