@@ -1,11 +1,11 @@
 #include "objects.h"
+#include "global.h"
 // declare global variables
 using namespace mtobj;
-int seed{23};
-boost::random::mt19937 gen{static_cast<std::uint32_t>(seed)};
-boost::random::normal_distribution<double> rn;
 
 int main() {
+    MTTensor z{{1,1},{2,2},{3,3},{4,4}};
+    std::cout << z << std::endl;
     // initialize prior and proposal sd
     initPrior({0.,410000.}, {-5,2}, {-3,0}, {-90,90});
     initProposal({0.,410000.}, {-5,2}, {-3,0}, {-90,90},100.);
@@ -45,12 +45,12 @@ int main() {
 //    }
     model m;
     m.nodes.push_back(node(0,1));
-    m.nodes.push_back(node(1,-2));
-    m.nodes.push_back(node(3,-3, -2, -45.2));
-    m.nodes.push_back(node(6,-4));
+    m.nodes.push_back(node(100,-2));
+    m.nodes.push_back(node(300,-3, -2, -45.2));
+    m.nodes.push_back(node(6000,-4));
 
     if (m.isInPrior()) m.calc_params();
-
+    std::cout << m(0.77);
 
     int node_id = 1; // the node I am going to perturb
     model m2 = perturb(m,node_id,paramType::depth);

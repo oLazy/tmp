@@ -20,8 +20,43 @@
 extern int seed;
 extern boost::random::mt19937 gen;
 extern boost::random::normal_distribution<double> rn;
+
 namespace mtobj {
+    /*include code from the old project */
+    //TODO adjust the calc_params method to ensure physical parameter units are correct
+
+#include "MTTensor.h"
+    typedef std::complex<double> MTComplex;
+    typedef std::complex<double> dcomp;
     typedef std::pair<double, double> limits;
+    MTComplex static constexpr ic{0,1};
+    double static constexpr pi{M_PI};
+    MTTensor rot_z(MTTensor const &za, double beta_rad){
+        if (std::isnan(beta_rad)) beta_rad = 0.;
+        MTTensor result;
+        double co2 = cos(2.*beta_rad);
+        double si2 = sin(2.*beta_rad);
+
+        dcomp sum1 = za.xx+za.yy;
+        dcomp sum2 = za.xy+za.yx;
+
+        dcomp dif1 = za.xx-za.yy;
+        dcomp dif2 = za.xy-za.yx;
+
+        result.xx = 0.5*(sum1+dif1*co2+sum2*si2);
+        result.xy = 0.5*(dif2+sum2*co2-dif1*si2);
+        result.yx = 0.5*(-dif2+sum2*co2-dif1*si2);
+        result.yy = 0.5*(sum1-dif1*co2-sum2*si2);
+        return result;
+    }
+
+    [[nodiscard]] inline dcomp dfp(dcomp const &x) noexcept{
+        return 1.0+ std::exp(-2.0*x);
+    }
+
+    [[nodiscard]] inline dcomp dfm(dcomp const &x) noexcept{
+        return 1.0- std::exp(-2.0*x);
+    }
     enum paramType {
         begin = 0, depth = begin, sigmaMean, sigmaRatio, beta, end
     };
@@ -271,6 +306,113 @@ namespace mtobj {
                     _blt.push_back(0);
                 }
             }
+        }
+
+        MTTensor operator()(const double &x) const noexcept {
+
+            dcomp k0{(1.0 - ic) * 2. * pi * pow(10., -3.) / sqrt(10. * x)};
+            // compute the impedance on the top of the homogeneous
+            // basement in the direction of its strike
+            auto number_of_layers = nodes.size() - 1;
+            auto number_of_interfaces = nodes.size();
+
+            auto i_layer = static_cast<unsigned long>(number_of_layers);
+
+            double a1 = _al[i_layer];
+            double a2 = _at[i_layer];
+            double bs = _blt[i_layer];
+            double a1is = 1. / sqrt(a1);
+            double a2is = 1. / sqrt(a2);
+            MTTensor z{{0,0},{0,0},{0,0},{0,0}};
+            MTTensor z_rot;
+            MTTensor z_bot;
+            z_rot.xx = 0.;
+            z_rot.xy = k0 * a1is;
+            z_rot.yx = -k0 * a2is;
+            z_rot.yy = 0.;
+            /*
+             c> If no more layers are present in the model, rotate the
+             c> impedance into the original coordinate system and return
+             */
+            if (number_of_interfaces == 1) {
+
+                z = rot_z(z_rot, -bs);
+                return z;
+            }
+
+            double bs_ref = bs;
+
+
+            for (unsigned long layer = (number_of_layers - 1); layer != static_cast<unsigned long>(-1); --layer) {
+                i_layer = static_cast<unsigned long>(layer);
+                /* in the old code this was in km.
+                 * now the physical parameterization is computed on a different place, so the unit
+                 * transformation is not needed here */
+//                double hd = 1000. * _h[i_layer];
+                double hd = _h[i_layer];
+                a1 = _al[i_layer];
+                a2 = _at[i_layer];
+                bs = _blt[i_layer];
+                /*
+                 c
+                 c> If the strike direction differs from that of the previous
+                 c> layer, rotate the impedance into the coordinate system of
+                 c> the current anisotropy strike
+                 c
+                 */
+                dcomp dt_z_bot = z_rot.xx * z_rot.yy - z_rot.xy * z_rot.yx;
+                if (bs != bs_ref && a1 != a2) {
+                    z_bot = rot_z(z_rot, bs - bs_ref);
+
+                } else {
+                    z_bot = z_rot;
+                    bs = bs_ref;
+                }
+
+                dcomp k1 = k0 * sqrt(a1);
+                dcomp k2 = k0 * sqrt(a2);
+                a1is = 1. / sqrt(a1);
+                a2is = 1. / sqrt(a2);
+                dcomp dz1 = k0 * a1is;
+                dcomp dz2 = k0 * a2is;
+                dcomp ag1 = k1 * hd;
+                dcomp ag2 = k2 * hd;
+
+                /*
+                 c
+                 c> Propagate the impedance tensor from the bottom to the top
+                 c> of the current layer
+                 c
+                 */
+
+                dcomp z_denominator = dt_z_bot * dfm(ag1) * dfm(ag2) / (dz1 * dz2) +
+                                      z_bot.xy * dfm(ag1) * dfp(ag2) / dz1 -
+                                      z_bot.yx * dfp(ag1) * dfm(ag2) / dz2 +
+                                      dfp(ag1) * dfp(ag2);
+
+                z_rot.xx = 4. * z_bot.xx * std::exp(-ag1 - ag2) / z_denominator;
+                z_rot.xy = (z_bot.xy * dfp(ag1) * dfp(ag2) -
+                            z_bot.yx * dfm(ag1) * dfm(ag2) * dz1 / dz2 +
+                            dt_z_bot * dfp(ag1) * dfm(ag2) / dz2 +
+                            dfm(ag1) * dfp(ag2) * dz1) / z_denominator;
+                z_rot.yx = (z_bot.yx * dfp(ag1) * dfp(ag2) -
+                            z_bot.xy * dfm(ag1) * dfm(ag2) * dz2 / dz1 -
+                            dt_z_bot * dfm(ag1) * dfp(ag2) / dz1 -
+                            dfp(ag1) * dfm(ag2) * dz2) / z_denominator;
+                z_rot.yy = 4. * z_bot.yy * std::exp(-ag1 - ag2) / z_denominator;
+
+                bs_ref = bs;
+
+            }
+
+            if (bs_ref != 0.0) {
+                z = rot_z(z_rot, -bs_ref);
+            } else {
+                z = z_rot;
+            }
+            return z;
+
+
         }
 
         friend std::ostream &operator<<(std::ostream &os, const model &model) {
