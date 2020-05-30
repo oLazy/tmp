@@ -425,6 +425,13 @@ namespace mtobj {
             }
             return os;
         }
+
+    private:
+        friend boost::serialization::access;
+        template<typename Archive>
+        void serialize(Archive &ar, const unsigned int version) {
+            ar & nodes;
+        }
     };
 
     model perturb(model const &m0, int node_id, paramType pt) {
