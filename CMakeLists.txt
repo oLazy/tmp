@@ -3,5 +3,5 @@ project(mt1danisModelParams)
 find_package(Boost REQUIRED serialization)
 set(CMAKE_CXX_STANDARD 14)
 
-add_executable(mt1danisModelParams main.cpp)
+add_executable(mt1danisModelParams main.cpp objects.h)
 target_link_libraries(mt1danisModelParams ${Boost_LIBRARIES})
