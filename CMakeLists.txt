@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.10)
 project(mt1danisModelParams)
-find_package(Boost REQUIRED serialization)
+find_package(Boost REQUIRED serialization iostreams system filesystem)
 set(CMAKE_CXX_STANDARD 14)
 
 add_executable(mt1danisModelParams main.cpp objects.h)
 add_executable(MTmgen mt1danis_generate_model.cpp objects.h)
+add_executable(doTest some_tests.cpp objects.h)
 target_link_libraries(mt1danisModelParams ${Boost_LIBRARIES})
 target_link_libraries(MTmgen ${Boost_LIBRARIES})
+target_link_libraries(doTest ${Boost_LIBRARIES})

@@ -297,8 +297,8 @@ namespace mtobj {
                                   nodes[i].params[paramType::sigmaRatio].getValue()); // 10^param, sampling in log space
                     auto beta = nodes[i].params[paramType::beta].getValue() * M_PI /
                                 180.; // angle stored in deg, used in rads
-                    _al.push_back(2 * sm * sr / (1. + sr));
-                    _at.push_back(2 * sm / (1. + sr));
+                    _at.push_back(2 * sm * sr / (1. + sr));
+                    _al.push_back(2 * sm / (1. + sr));
                     _blt.push_back(beta);
                 } else {
                     _al.push_back(sm);
