@@ -479,5 +479,33 @@ namespace mtobj {
         }
         return c - sum_log_sigma -0.5*sum_res;
     }
+
+    double expectedLogL(
+            std::map<double, MTTensor> const &d,
+            std::map<double, double> const &cov){
+        static const double f{8}; // 8=4 real and 4 imag parts
+        auto N=d.size()*f;
+        auto c=-N*0.5*log(2*M_PI);
+        double sum_log_sigma{0};
+        for (auto dat: d){
+            double const T=dat.first;
+            MTTensor const z_meas=dat.second;
+            auto const sigma = cov.at(T);
+            sum_log_sigma+=f*log(sigma);
+        }
+        return c - sum_log_sigma -0.5*N;
+    }
+
+    double varLogL(std::map<double, MTTensor> const &d){
+        static const double f{8}; // 8=4 real and 4 imag parts
+        auto N=d.size()*f;
+        return 2*N;
+    }
+
+    double stdLogL(std::map<double, MTTensor> const &d){
+        static const double f{8}; // 8=4 real and 4 imag parts
+        auto N=d.size()*f;
+        return sqrt(2*N);
+    }
 }
 #endif //MT1DANISMODELPARAMS_OBJECTS_H
