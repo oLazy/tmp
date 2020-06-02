@@ -17,6 +17,9 @@
 #include <numeric>
 #include <exception>
 
+
+#include "MTTensor.h"
+
 extern int seed;
 extern boost::random::mt19937 gen;
 extern boost::random::normal_distribution<double> rn;
@@ -25,7 +28,6 @@ namespace mtobj {
     /*include code from the old project */
     //TODO adjust the calc_params method to ensure physical parameter units are correct
 
-#include "MTTensor.h"
     typedef std::complex<double> MTComplex;
     typedef std::complex<double> dcomp;
     typedef std::pair<double, double> limits;
@@ -443,6 +445,23 @@ namespace mtobj {
             mp[node_id].params[pt].setValue(p_i);
         }
         return mp;
+    }
+    /*** ASSUMPTIONS: // TODO FINISH TISH FUNCTION
+     * the error statistics is normal, all the impedances are affected by the same error
+     * which is dominated by the noise in the electric channel.
+     * @param m : model
+     * @param d : data
+     * @param cov : covariance
+     * @return : log(likelihood)
+     */
+    double logL(model const &m,
+                std::map<double, MTTensor> const &d,
+                std::map<double, double> const &cov){
+        for (auto z_meas: d){
+            double T=z_meas.first;
+            MTTensor z_pred=m(T);
+
+        }
     }
 }
 #endif //MT1DANISMODELPARAMS_OBJECTS_H

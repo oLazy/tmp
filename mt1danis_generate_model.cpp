@@ -47,9 +47,10 @@ int main(int argn, char* argv[]){
     }
     m.calc_params();
     // plot section: here the model is plot both in sampling space and in physical space
-    double tmpd=m.nodes[m.nodes.size()-1].params[mtobj::paramType::depth].getValue()+1000;
+    double tmpd=m.nodes[m.nodes.size()-1].params[mtobj::paramType::depth].getValue()*1.05;
     double tmpsm=m.nodes[m.nodes.size()-1].params[mtobj::paramType::sigmaMean].getValue();
-    std::vector<double> x, y, x1, x2, x3;
+    std::vector<double> x, y, x1, x2;
+    std::vector<double> xb, yb, dxb, dyb;
 //    x.push_back(m.nodes[0].params[mtobj::paramType::sigmaMean].getValue());
 //    y.push_back(0);
 //    x1.push_back(m._al[0]*pow(10,-6));
@@ -58,39 +59,61 @@ int main(int argn, char* argv[]){
         x.push_back(m.nodes[i].params[mtobj::paramType::sigmaMean].getValue());
         x1.push_back(m._al[i]);
         x2.push_back(m._at[i]);
-        x3.push_back(m._blt[i]);
+        if(m.nodes[i].params[mtobj::paramType::beta].isActive()) {
+            xb.push_back(m.nodes[i].params[mtobj::paramType::beta].getValue());
+            yb.push_back(m.nodes[i].params[mtobj::paramType::depth].getValue());
+            dxb.push_back(0);
+            if(i!=m.nodes.size()-1){
+//                dyb.push_back(m.nodes[i+1].params[mtobj::paramType::depth].getValue());
+                dyb.push_back(m._h[i]);
+            }else{
+                dyb.push_back(tmpd-m.nodes[i].params[mtobj::paramType::depth].getValue());
+            }
+        }
         y.push_back(m.nodes[i].params[mtobj::paramType::depth].getValue());
         x.push_back(m.nodes[i].params[mtobj::paramType::sigmaMean].getValue());
         x1.push_back(m._al[i]);
         x2.push_back(m._at[i]);
-        x3.push_back(m._blt[i]);
+//        x3.push_back(m._blt[i]);
         if (i!=m.nodes.size()-1){
             y.push_back(m.nodes[i+1].params[mtobj::paramType::depth].getValue());}
         else{
             y.push_back(tmpd);
         }
-        std::cout << "i= " << i <<"\n";
+//        std::cout << "i= " << i <<"\n";
 
     }
 //    x1.push_back(m._al[m.nodes.size()]);
-    std::cout << x1.size() << " " << y.size() << "\n";
-    for (int i=0; i<x1.size(); i++){
-        std::cout << x1[i] << "\t" << y[i] << "\n";
-    }
+//    std::cout << x1.size() << " " << y.size() << "\n";
+//    for (int i=0; i<x1.size(); i++){
+//        std::cout << x1[i] << "\t" << y[i] << "\n";
+//    }
 //    y.push_back(tmpd);
 //    x.push_back(tmpsm);
 
     Gnuplot gp;
-    auto gp_filename = out_file_name.replace(out_file_name.length()-3,3,"png");
-    gp << "set term pngcairo\n";
+    auto gp_filename = out_file_name.replace(out_file_name.length()-3,3,"pdf");
+    gp << "set term pdfcairo size 1.75,2 font \"Times,9\"\n";
     gp << "set tics out\n";
+    gp << "set format x \"10^{%T}\"\n";
     gp << "set grid\n";
     gp << "set out \"" << gp_filename << "\"\n";
     gp << "set logscale x\n";
-    gp << "set xrange [0.00001:10]\nset yrange ["<<tmpd<<":0] reverse\n";
-    gp << "plot '-' with lines lw 2 title '{/Symbol s}_{hi}', '-' with lines title '{/Symbol s}_{lo}'\n";
+    gp << "set xrange [0.000005:15]\n";
+    gp << "set yrange ["<<tmpd<<":0] reverse\n";
+    gp << "set xtics nomirror\n";
+    gp << "set ytics rotate by 45\n";
+    gp << "set x2range [-90:90]\n";
+    gp << "set x2tics -90,30\n";
+    gp << "set xlabel \"Conductivity (S/m)\"\n";
+    gp << "set x2label \"Strike ({/Symbol \\260})\"\n";
+    gp << "set ylabel \"Depth (m)\"\n";
+    gp << "plot '-' with lines lw 2.5 lc rgb '#F0BC42' title '{/Symbol s}_{hi}',"<<
+       "'-' with lines lw 1 lc rgb '#8E1F2F' title '{/Symbol s}_{lo}'," <<
+       "'-' with vectors nohead lc rgb '#000000' axis x2y1 title '{/Symbol b}_{strike}'\n";
     gp.send1d(boost::make_tuple(x1,y));
     gp.send1d(boost::make_tuple(x2,y));
+    gp.send1d(boost::make_tuple(xb,yb,dxb,dyb));
 
 
     return 0;

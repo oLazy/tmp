@@ -3,6 +3,7 @@
 //
 
 #include "MTTensor.h"
+#include <array>
 MTTensor MTTensor::operator+(MTTensor const &rhs) const{
     return {{this->xx + rhs.xx},
             {this->xy + rhs.xy},
@@ -126,3 +127,8 @@ MTTensor dot_abs(MTTensor const &z) {
                     {std::abs(std::real(z.yx)),std::abs(std::imag(z.yx))},
                     {std::abs(std::real(z.yy)),std::abs(std::imag(z.yy))});
 }
+
+//double MTTensor::maxAbsImpedance() const {
+//    std::array<double,4> absZ({std::abs(xx), std::abs(xy), std::abs(yx), std::abs(yy)});
+//    return *(std::max_element(absZ.begin(), absZ.end()));
+//}

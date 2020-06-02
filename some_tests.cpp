@@ -11,6 +11,8 @@ int main (int argc, char *argv[]){
     mtobj::model model;
     ia >> model;
     model.calc_params();
-    std::cout << model <<std::endl;
+
+    std::cout << model(0.0001) <<std::endl;
+    std::cout << model(0.0001).maxAbsImpedance() <<std::endl;
     return 0;
 }

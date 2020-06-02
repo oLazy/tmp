@@ -7,6 +7,9 @@
 
 #include <complex>
 #include <math.h>
+#include <boost/serialization/serialization.hpp>
+#include <boost/serialization/complex.hpp>
+#include <array>
 
 typedef std::complex<double> MTComplex;
 struct MTTensor {
@@ -39,6 +42,12 @@ struct MTTensor {
     MTTensor dot_sqrt() const;
     MTTensor dot_log() const;
     MTTensor dot_atomic_log() const;
+    double maxAbsImpedance() const{
+        std::array<double,4> absZ({std::abs(xx), std::abs(xy), std::abs(yx), std::abs(yy)});
+        double res = *(std::max_element(absZ.begin(), absZ.end()));
+        return res;
+    };
+
     /**
      *
      * @return (double) sum of real and imaginary parts of the complex tensor elements
@@ -50,6 +59,16 @@ struct MTTensor {
         os << "xx: " << tensor.xx << "; xy: " << tensor.xy << "; yx: " << tensor.yx << "; yy: " << tensor.yy;
         return os;
     };
+private:
+    friend boost::serialization::access;
+    template<typename Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & xx;
+        ar & xy;
+        ar & yx;
+        ar & yy;
+    }
+
 };
 
 MTTensor abs(MTTensor const &z);
