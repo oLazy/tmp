@@ -446,7 +446,7 @@ namespace mtobj {
         }
         return mp;
     }
-    /*** ASSUMPTIONS: // TODO FINISH TISH FUNCTION
+    /*** ASSUMPTIONS:
      * the error statistics is normal, all the impedances are affected by the same error
      * which is dominated by the noise in the electric channel.
      * @param m : model
@@ -457,11 +457,27 @@ namespace mtobj {
     double logL(model const &m,
                 std::map<double, MTTensor> const &d,
                 std::map<double, double> const &cov){
-        for (auto z_meas: d){
-            double T=z_meas.first;
+        static const double f{8}; // 8=4 real and 4 imag parts
+        auto N=d.size()*f;
+        auto c=-N*0.5*log(2*M_PI);
+        double sum_log_sigma{0};
+        double sum_res{0};
+        for (auto dat: d){
+            double const T=dat.first;
+            MTTensor const z_meas=dat.second;
             MTTensor z_pred=m(T);
-
+            auto const sigma = cov.at(T);
+            sum_log_sigma+=f*log(sigma);
+            sum_res+=pow((std::real(z_meas.xx)-std::real(z_pred.xx))/sigma,2);
+            sum_res+=pow((std::real(z_meas.xy)-std::real(z_pred.xy))/sigma,2);
+            sum_res+=pow((std::real(z_meas.yx)-std::real(z_pred.yx))/sigma,2);
+            sum_res+=pow((std::real(z_meas.yy)-std::real(z_pred.yy))/sigma,2);
+            sum_res+=pow((std::imag(z_meas.xx)-std::imag(z_pred.xx))/sigma,2);
+            sum_res+=pow((std::imag(z_meas.xy)-std::imag(z_pred.xy))/sigma,2);
+            sum_res+=pow((std::imag(z_meas.yx)-std::imag(z_pred.yx))/sigma,2);
+            sum_res+=pow((std::imag(z_meas.yy)-std::imag(z_pred.yy))/sigma,2);
         }
+        return c - sum_log_sigma -0.5*sum_res;
     }
 }
 #endif //MT1DANISMODELPARAMS_OBJECTS_H
