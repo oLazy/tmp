@@ -13,7 +13,9 @@ int main(int argn, char* argv[]){
         std::cout << "Error! this program requires a single argument.\n";
         return 1;
     }
-    std::string out_file_name{"model.dat"}; // TODO make this custom
+    std::string model_filename{argv[1]};
+    std::string out_f = model_filename.replace(model_filename.length()-4,4,".dat");
+    std::string out_file_name{out_f};
     std::ifstream is(argv[1]);
     std::string line;
     int ln = 0;

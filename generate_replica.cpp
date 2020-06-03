@@ -9,7 +9,10 @@
 int main(int argc, char* argv[]){
     const double stdev{0.03};
     std::ifstream is(argv[1]);
-    std::string out_file_name{"replica.dat"}; // TODO make this custom
+    std::string model_filename{argv[1]};
+    std::string out_f = model_filename.replace(model_filename.length()-4,4,"_rep.dat");
+//    std::cout << out_f << "\n";
+    std::string out_file_name{out_f};
     boost::archive::text_iarchive ia(is);
     mtobj::model m;
     ia >> m;
