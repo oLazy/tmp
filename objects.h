@@ -226,13 +226,15 @@ namespace mtobj {
                 this->nodes.push_back(n);
             }
         } // implement copy constructor, it must copy the nodes but not other fields.
-        model &operator=(const model &m) {
-            model res;
-            for (const auto &n:m.nodes) {
-                this->nodes.push_back(n);
-            }
-            return *this;
-        } // implement copy assignment, it must copy the nodes but not other fields.
+
+        model &operator=(const model &m) = default;
+//        model &operator=(const model &m) {
+//            model res;
+//            for (const auto &n:m.nodes) {
+//                this->nodes.push_back(n);
+//            }
+//            return *this;
+//        } // implement copy assignment, it must copy the nodes but not other fields.
         std::vector<node> nodes;
         std::vector<double> _h, _al, _at, _blt;
 
@@ -443,7 +445,7 @@ namespace mtobj {
         model mp = m0;
         if (mp[node_id].params[pt].isActive()) {
             auto ran = rn(gen);
-            std::cerr << "ran = " << ran << "\n"; // log the random number
+//            std::cerr << "ran = " << ran << "\n"; // log the random number
             auto p_i = mp[node_id].params[pt].getValue() + ran * proposal[pt];
             mp[node_id].params[pt].setValue(p_i);
         }
