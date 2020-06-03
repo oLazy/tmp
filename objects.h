@@ -31,6 +31,9 @@ namespace mtobj {
     typedef std::complex<double> MTComplex;
     typedef std::complex<double> dcomp;
     typedef std::pair<double, double> limits;
+
+    typedef std::map<double,double> Cov0;
+    typedef std::map<double,MTTensor> Dataset;
     MTComplex static constexpr ic{0,1};
     double static constexpr pi{M_PI};
     MTTensor rot_z(MTTensor const &za, double beta_rad){

@@ -23,7 +23,7 @@ int main(int argc, char* argv[]){
     std::vector<double> nrxx, nrxy, nryx, nryy;
     std::vector<double> nixx, nixy, niyx, niyy;
     std::vector<double> errorbar;
-    std::map<double, MTTensor> dataet;
+    std::map<double, MTTensor> dataset;
     std::map<double, double> cov_0;
 
     for (int iper = -30; iper< 51; ++iper) {
@@ -47,7 +47,7 @@ int main(int argc, char* argv[]){
 //        std::cout << "================================================\n";
         auto ztmp = z0+(sz*z0.maxAbsImpedance()*stdev);
         errorbar.push_back(z0.maxAbsImpedance()*stdev);
-        dataet[T] = ztmp;
+        dataset[T] = ztmp;
         cov_0[T] = z0.maxAbsImpedance()*stdev;
         z1.push_back(ztmp);
         nrxx.push_back(std::real(ztmp.xx));
@@ -61,16 +61,17 @@ int main(int argc, char* argv[]){
     }
     // print dataset statistics
     std::cout <<
-    "ELog(L): " << mtobj::expectedLogL(dataet, cov_0) <<
-    "\nLog[L(m*)]: " << mtobj::logL(m, dataet, cov_0) <<
-    "\nstd(ELogL): " << mtobj::stdLogL(dataet) <<
-    "\nvar(ELogL): " << mtobj::varLogL(dataet) << "\n";
+              "ELog(L): " << mtobj::expectedLogL(dataset, cov_0) <<
+              "\nLog[L(m*)]: " << mtobj::logL(m, dataset, cov_0) <<
+              "\nstd(ELogL): " << mtobj::stdLogL(dataset) <<
+              "\nvar(ELogL): " << mtobj::varLogL(dataset) << "\n";
 
 
     // save tensors and periods
     std::ofstream os(out_file_name);
     boost::archive::text_oarchive oa(os);
-    oa << z1;
+    oa << dataset;
+    oa << cov_0;
     // plot!!!
     Gnuplot gp;
     auto gp_filename = out_file_name.replace(out_file_name.length()-3,3,"pdf");
