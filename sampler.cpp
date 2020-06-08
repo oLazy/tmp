@@ -200,9 +200,9 @@ int main(int argn, char* argv[]) {
                 }
                     break;
                 case move::iso_switch: {
-                    proposed["iso_switch"]++;
 //                    boost::timer::auto_cpu_timer tm;
                     for (int n = 0; n < m.nodes.size(); n++) { // try to switch each node independently
+                        proposed["iso_switch"]++;
                         auto m1 = iso_switch(m, n);
                         if (m1.isInPrior() && m1.isValid()) {
                             m1.calc_params();
