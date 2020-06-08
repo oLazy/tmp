@@ -16,13 +16,21 @@
 #include <cmath>
 #include <numeric>
 #include <exception>
+#include <algorithm>
+#include <boost/histogram.hpp>
+#include <boost/timer/timer.hpp>
+#ifdef _OMP
+#include <omp.h>
+#endif
 
 
 #include "MTTensor.h"
 
+
 extern int seed;
 extern boost::random::mt19937 gen;
 extern boost::random::normal_distribution<double> rn;
+extern boost::random::uniform_real_distribution<double> urn;
 
 namespace mtobj {
     /*include code from the old project */
@@ -36,6 +44,16 @@ namespace mtobj {
     typedef std::map<double,MTTensor> Dataset;
     MTComplex static constexpr ic{0,1};
     double static constexpr pi{M_PI};
+
+    class ModelOutOfPrior: public std::exception
+    {
+        virtual const char* what() const throw()
+        {
+            return "Model out prior";
+        }
+    };
+
+
     MTTensor rot_z(MTTensor const &za, double beta_rad){
         if (std::isnan(beta_rad)) beta_rad = 0.;
         MTTensor result;
@@ -69,6 +87,7 @@ namespace mtobj {
                                          {1, "mean"},
                                          {2, "ratio"},
                                          {3, "beta"}};
+    typedef std::map<int, std::pair<double, double> > Prior;
     std::map<int, std::pair<double, double> > prior;
 
     void initPrior(limits depth, limits mean, limits ratio, limits beta) {
@@ -134,7 +153,7 @@ namespace mtobj {
         }
     };
 
-    class ModelError : std::logic_error {
+    class ModelError : public std::logic_error {
     public:
         ModelError(const std::string &string) : logic_error(string) { message = string; }
 
@@ -218,6 +237,31 @@ namespace mtobj {
 
     };
 
+    node generateIsoNode(Prior const &p){
+
+        double const mind = p.at(paramType::depth).first;
+        double const maxd = p.at(paramType::depth).second;
+        double depth = boost::random::uniform_real_distribution<double>(mind,maxd)(gen);
+
+        double const mins = p.at(paramType::sigmaMean).first;
+        double const maxs = p.at(paramType::sigmaMean).second;
+        double sm = boost::random::uniform_real_distribution<double>(mins,maxs)(gen);
+        node res(depth, sm);
+        return res;
+    }
+
+    node generateAnisNode(Prior const &p) {
+        node res;
+        for (int pt = paramType::begin; pt != paramType::end; pt++) {
+            double const min = p.at(pt).first;
+            double const max = p.at(pt).second;
+            double value = boost::random::uniform_real_distribution<double>(min, max)(gen);
+            res.params[pt].setType(static_cast<paramType>(pt));
+            res.params[pt].setIsActive(true);
+            res.params[pt].setValue(value);
+        }
+        return res;
+    }
     struct model {
         model() = default;
 
@@ -225,6 +269,8 @@ namespace mtobj {
             for (const auto &n:m.nodes) {
                 this->nodes.push_back(n);
             }
+            this->logL = m.logL;
+            this->beta = m.beta;
         } // implement copy constructor, it must copy the nodes but not other fields.
 
         model &operator=(const model &m) = default;
@@ -237,19 +283,34 @@ namespace mtobj {
 //        } // implement copy assignment, it must copy the nodes but not other fields.
         std::vector<node> nodes;
         std::vector<double> _h, _al, _at, _blt;
+        double logL{0};
+        double beta{1.};
 
         node operator[](int i) const { return nodes[i]; }
 
         node &operator[](int i) { return nodes[i]; }
 
         node getNode(double depth) {
-            for (int i = 0; i < nodes.size() - 1; i++) {
-                if (nodes[i + 1].params[paramType::depth].getValue() > depth &&
-                    nodes[i].params[paramType::depth].getValue() < depth) {
+            auto nnode = nodes.size()-1;
+            auto deep_z = nodes[nnode].params[paramType::depth].getValue();
+            for (int i = 0; i < nnode; i++) {
+                auto z1 = nodes[i + 1].params[paramType::depth].getValue();
+                auto z0 = nodes[i].params[paramType::depth].getValue();
+                if ((z1 > depth) && (z0 <= depth)) {
                     return nodes[i];
                 }
             }
+            return nodes[nnode];
+
             throw ModelError("no value available at specified depth.");
+        }
+
+        void setLogL(double logL) {
+            model::logL = logL;
+        }
+
+        void setBeta(double beta) {
+            model::beta = beta;
         }
 
         bool isValid() {
@@ -259,15 +320,15 @@ namespace mtobj {
             }
             std::vector<double> diff(z.size());
             std::adjacent_difference(z.begin(), z.end(), diff.begin());
-            std::cout << "diff elements:\n";
-            for (auto d:diff) {
-                std::cout << d << "\n";
-            }
+//            std::cout << "diff elements:\n";
+//            for (auto d:diff) {
+//                std::cout << d << "\n";
+//            }
             if (std::any_of(diff.begin()++, diff.end(), [](double x) { return x < 0; })) {
-                for (auto d = diff.begin()++; d != diff.end(); d++) {
-                    std::cout << "if any=true loop\n";
-                    std::cout << *d << "\n";
-                }
+//                for (auto d = diff.begin()++; d != diff.end(); d++) {
+//                    std::cout << "if any=true loop\n";
+//                    std::cout << *d << "\n";
+//                }
                 return false;
             }
             return true;
@@ -286,6 +347,12 @@ namespace mtobj {
                 return true;
             };
             return std::all_of(nodes.begin(), nodes.end(), params_in_prior);
+        }
+        void sort_nodes(){
+            auto comp = [](const node& lhs, const node& rhs) {
+                return lhs.params.at(paramType::depth).getValue() < rhs.params.at(paramType::depth).getValue();
+            };
+            std::sort(nodes.begin(),nodes.end(),comp);
         }
 
         void calc_params() {
@@ -451,23 +518,109 @@ namespace mtobj {
         }
         return mp;
     }
-    /*** ASSUMPTIONS:
-     * the error statistics is normal, all the impedances are affected by the same error
-     * which is dominated by the noise in the electric channel.
-     * @param m : model
-     * @param d : data
-     * @param cov : covariance
-     * @return : log(likelihood)
-     */
+
+    model death(model const &m0){
+        if(m0.nodes.size()<2){
+            throw ModelOutOfPrior();
+        }
+        boost::random::uniform_int_distribution<int> r_node(1,m0.nodes.size()-1);
+        auto nn = r_node(gen);
+        model res;
+        int i{0};
+        for (auto n:m0.nodes){
+            if(i!=nn) res.nodes.push_back(n); // copy only "live" nodes
+            i++;
+        }
+        return res;
+    }
+    enum class birthType{iso, anis, any};
+    model birth(model const &m0, birthType t) {
+        node newNode;
+        switch (t) {
+            case birthType::iso: {
+                newNode = generateIsoNode(prior);
+            }
+                break;
+            case birthType::anis: {
+                newNode = generateAnisNode(prior);
+            }
+                break;
+            case birthType::any: {
+                double rand_num = urn(gen);
+                if (rand_num <= 0.5) {
+                    newNode = generateIsoNode(prior);
+                } else {
+                    newNode = generateAnisNode(prior);
+                }
+            }
+        }
+        model m1 = m0;
+        m1.nodes.push_back(newNode);
+        auto comp = [](node const &a, node const &b) {
+            return (
+                    a.params.at(paramType::depth).getValue() <
+                    b.params.at(paramType::depth).getValue()
+            );
+        };
+//        std::sort(m1.nodes.begin(), m1.nodes.end(), comp); // TODO TEST THIS ACTUALLY RETURNS m1 SORTED PROPERLY
+        m1.sort_nodes();
+        return m1;
+    }
+
+    model iso_switch(model const &m0, int node_id){
+        model mp = m0;
+        if(mp[node_id].params[paramType::sigmaRatio].isActive()){
+            mp[node_id].params[paramType::sigmaRatio].setValue(nan(""));
+            mp[node_id].params[paramType::beta].setValue(nan(""));
+            mp[node_id].params[paramType::sigmaRatio].setIsActive(false);
+            mp[node_id].params[paramType::beta].setIsActive(false);
+        }else{
+            // generate ratio
+            double const min = prior.at(paramType::sigmaRatio).first;
+            double const max = prior.at(paramType::sigmaRatio).second;
+            double value = boost::random::uniform_real_distribution<double>(min, max)(gen);
+            mp[node_id].params[paramType::sigmaRatio].setIsActive(true);
+            mp[node_id].params[paramType::sigmaRatio].setValue(value);
+            // generate beta
+            double const minb = prior.at(paramType::beta).first;
+            double const maxb = prior.at(paramType::beta).second;
+            value = boost::random::uniform_real_distribution<double>(minb, maxb)(gen);
+            mp[node_id].params[paramType::beta].setIsActive(true);
+            mp[node_id].params[paramType::beta].setValue(value);
+
+        }
+        return mp;
+    }
+
+//    model isoJump(model const &m0, int node_id){
+//
+//    }
+/*** ASSUMPTIONS:
+ * the error statistics is normal, all the impedances are affected by the same error
+ * which is dominated by the noise in the electric channel.
+ * @param m : model
+ * @param d : data
+ * @param cov : covariance
+ * @return : log(likelihood)
+ */
     double logL(model const &m,
                 std::map<double, MTTensor> const &d,
                 std::map<double, double> const &cov){
+
         static const double f{8}; // 8=4 real and 4 imag parts
         auto N=d.size()*f;
         auto c=-N*0.5*log(2*M_PI);
         double sum_log_sigma{0};
         double sum_res{0};
+#ifdef _OMP
+        #pragma omp parallel for reduction (+:sum_log_sigma,sum_res)
+        for (int i=0; i<d.size(); i++){
+            auto it = d.begin();
+            std::advance(it,i);
+            auto dat = *it;
+#else
         for (auto dat: d){
+#endif
             double const T=dat.first;
             MTTensor const z_meas=dat.second;
             MTTensor z_pred=m(T);
@@ -481,7 +634,7 @@ namespace mtobj {
             sum_res+=pow((std::imag(z_meas.xy)-std::imag(z_pred.xy))/sigma,2);
             sum_res+=pow((std::imag(z_meas.yx)-std::imag(z_pred.yx))/sigma,2);
             sum_res+=pow((std::imag(z_meas.yy)-std::imag(z_pred.yy))/sigma,2);
-        }
+        } // end of omp parallel region. Here sum_res and sum_sigma should be reduced
         return c - sum_log_sigma -0.5*sum_res;
     }
 
