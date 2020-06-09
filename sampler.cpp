@@ -26,6 +26,8 @@ int main(int argn, char* argv[]) {
     const int n_temp{8};
     const double max_temp{1000.};
     const double max_depth{8000.};
+    const int itern_max{300000};
+    const int burn_in_n{30000};
 
     std::array<std::map<std::string , unsigned long>,n_temp> proposed, accepted;
     for (int iic=0; iic<n_temp;iic++) {
@@ -95,11 +97,13 @@ int main(int argn, char* argv[]) {
 
     auto logl_ax = boost::histogram::axis::regular<>(13,el-3*sl,el+3*sl,"logL");
     auto hll = boost::histogram::make_histogram(logl_ax);
+    auto ni_ax = boost::histogram::axis::regular<>(16,1,16,"interfaces");
+    auto h_n_inter = boost::histogram::make_histogram(ni_ax);
 
     auto t0 = Clock::now();
     boost::timer::cpu_timer timer;
     timer.stop();
-    for (auto itern=0; itern<15000;itern++) {
+    for (auto itern=0; itern<itern_max;itern++) {
 
         for (int iic = 0; iic < n_temp; iic++) {
             m = chains[iic];
@@ -222,7 +226,8 @@ int main(int argn, char* argv[]) {
             }
 
             // fill the histogram
-            if ((itern > 3000) && (m.beta == 1)) { // only collect samples from t0 chain
+            if ((itern > burn_in_n) && (m.beta == 1)) { // only collect samples from t0 chain
+                h_n_inter(m.nodes.size());
                 hll(m.logL);
                 for (int i = 0; i < n_z_bins; i++) {
                     auto dz = (prior[paramType::depth].second - prior[paramType::depth].first) /
@@ -290,9 +295,15 @@ int main(int argn, char* argv[]) {
     }
     histogram_file.close();
     std::ofstream hll_file("logL.res");
+    std::ofstream hin_file("hInter.res");
     for (auto &&x : boost::histogram::indexed(hll)){
         hll_file << 0.5*(x.bin(0).lower()+x.bin(0).upper()) << " " << *x << "\n";
     }
+    hll_file.close();
+    for (auto &&x : boost::histogram::indexed(h_n_inter)){
+        hin_file << 0.5*(x.bin(0).lower()+x.bin(0).upper()) << " " << *x << "\n";
+    }
+    hin_file.close();
     std::cout << "time spent in log(L) subroutine: " << timer.format() << "\n";
 #ifdef _OMP
     std::cout << "program run in parallel with OMP using a team of 4 threads.\n";

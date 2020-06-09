@@ -591,6 +591,7 @@ namespace mtobj {
                 auto bj = chains[j].beta;
                 auto bk = chains[k].beta;
                 if(urn(gen) <  pow(exp(chains[j].logL - chains[k].logL),(bk-bj))){
+                    std::cerr << "swapping chain no. " << j << " with chain no. " << k <<"\n";
                     chains[j].setBeta(bk);
                     chains[k].setBeta(bj);
                     std::swap(chains[j],chains[k]); // i-th temperature remains associated to the i-th chain
