@@ -102,7 +102,7 @@ int main(int argn, char* argv[]) {
     auto t0 = Clock::now();
     boost::timer::cpu_timer timer;
     timer.stop();
-    for (auto itern=0; itern<30000;itern++) {
+    for (auto itern=0; itern<3000;itern++) {
 
         for (int iic = 0; iic < n_temp; iic++) {
             m = chains[iic];
@@ -176,7 +176,7 @@ int main(int argn, char* argv[]) {
                 case move::death: {
                     proposed["death"]++;
 //                    boost::timer::auto_cpu_timer tm;
-                    if (m.nodes.size() < 2) {
+                    if (m.nodes.size() > 1) {
                         auto m1 = death(m);
                         if (m1.isInPrior()) {
                             m1.calc_params();
@@ -225,7 +225,7 @@ int main(int argn, char* argv[]) {
             }
 
             // fill the histogram
-            if ( (itern > 3000)&& (m.beta == 1)) { // only collect samples from t0 chain
+            if ( (itern > 1000)&& (m.beta == 1)) { // only collect samples from t0 chain
                 hll(m.logL);
                 for (int i = 0; i < n_z_bins; i++) {
                     auto dz = (prior[paramType::depth].second - prior[paramType::depth].first) /
@@ -295,7 +295,14 @@ int main(int argn, char* argv[]) {
     }
     std::cout << "time spent in log(L) subroutine: " << timer.format() << "\n";
 #ifdef _OMP
-    std::cout << "program run in parallel with OMP using a team of " << omp_get_num_threads() << " threads.\n";
+#pragma omp parallel
+    int nt = omp_get_thread_num();
+    {
+        if (omp_get_thread_num() == 0) {
+            std::cout << "program run in parallel with OMP using a team of " << omp_get_num_threads() << " threads.\n";
+        }
+    }
+
 #else
     std::cout << "program run serial on single thread.\n";
 #endif

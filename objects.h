@@ -531,6 +531,7 @@ namespace mtobj {
             if(i!=nn) res.nodes.push_back(n); // copy only "live" nodes
             i++;
         }
+        res.setBeta(m0.beta);
         return res;
     }
     enum class birthType{iso, anis, any};
