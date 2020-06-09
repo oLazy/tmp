@@ -24,19 +24,20 @@ int main(int argn, char* argv[]) {
     const int n_sigma_bins{512};
     const int n_z_bins{1024};
     const int n_temp{8};
-    const double max_temp{100.};
+    const double max_temp{1000.};
     const double max_depth{8000.};
 
-    std::map<std::string , unsigned long> proposed, accepted;
-    proposed["perturb"] = 0;
-    proposed["birth"] = 0;
-    proposed["death"] = 0;
-    proposed["iso_switch"] = 0;
-
-    accepted["perturb"] = 0;
-    accepted["birth"] = 0;
-    accepted["death"] = 0;
-    accepted["iso_switch"] = 0;
+    std::array<std::map<std::string , unsigned long>,n_temp> proposed, accepted;
+    for (int iic=0; iic<n_temp;iic++) {
+        proposed[iic]["perturb"] = 0;
+        proposed[iic]["birth"] = 0;
+        proposed[iic]["death"] = 0;
+        proposed[iic]["iso_switch"] = 0;
+        accepted[iic]["perturb"] = 0;
+        accepted[iic]["birth"] = 0;
+        accepted[iic]["death"] = 0;
+        accepted[iic]["iso_switch"] = 0;
+    }
 
     initPrior({0.,max_depth}, {-5,2}, {-3,0}, {-90,90});
     initProposal({0.,max_depth}, {-5,2}, {-3,0}, {-90,90},100.);
@@ -48,11 +49,6 @@ int main(int argn, char* argv[]) {
     is.close();
     // init model zero. it is a conductive crust lying over a resistive basement
     model m;
-//    m.nodes.push_back({0,log10(0.004)});
-//    m.nodes.push_back({600,log10(0.04)});
-//    m.nodes.push_back({1000,-2});
-//    m.nodes.push_back({3000,-1});
-//    m.nodes.push_back({3250,-3});
     m.nodes.push_back({0,-3});
     m.nodes.push_back({3000,1});
 
@@ -63,22 +59,23 @@ int main(int argn, char* argv[]) {
     }
     m.calc_params();
     m.setLogL(mtobj::logL(m, d, cov));
-    std::vector<model> chains;
-    { // make tempering schedule
-        double length = log10(max_temp);
-        double delta = length / static_cast<double>(n_temp-1);
-        for (int i = 0; i < n_temp; i++) {
-
-
-            double temperature = pow(10,static_cast<double>(i)*delta);
-            double beta = pow(temperature,-1);
-            std::cout << "t[" << i << "]: " << temperature << "\n";
-            m.setBeta(beta);
-            chains.push_back(m);
-        }
-    }
+    std::vector<model> chains; // chain set
+    calc_beta(n_temp, max_temp, m, chains);
+//    { // make tempering schedule
+//        double length = log10(max_temp);
+//        double delta = length / static_cast<double>(n_temp-1);
+//        for (int i = 0; i < n_temp; i++) {
+//
+//
+//            double temperature = pow(10,static_cast<double>(i)*delta);
+//            double beta = pow(temperature,-1);
+//            std::cout << "t[" << i << "]: " << temperature << "\n";
+//            m.setBeta(beta);
+//            chains.push_back(m);
+//        }
+//    }
     m = chains[0]; // t=1
-    // print dataset statistics
+    // log dataset statistics
 
     auto el = mtobj::expectedLogL(d, cov);
     auto sl = mtobj::stdLogL(d);
@@ -102,7 +99,7 @@ int main(int argn, char* argv[]) {
     auto t0 = Clock::now();
     boost::timer::cpu_timer timer;
     timer.stop();
-    for (auto itern=0; itern<3000;itern++) {
+    for (auto itern=0; itern<15000;itern++) {
 
         for (int iic = 0; iic < n_temp; iic++) {
             m = chains[iic];
@@ -123,7 +120,7 @@ int main(int argn, char* argv[]) {
                     for (int n = 0; n < m.nodes.size(); n++) { // perturb each parameter independently
                         for (int pt = paramType::begin; pt != paramType::end; pt++) {
                             if (m.nodes[n].params[pt].isActive()) {
-                                proposed["perturb"]++;
+                                proposed[iic]["perturb"]++;
                                 auto m1 = perturb(m, n, static_cast<paramType>(pt));
                                 if (m1.isInPrior() && m1.isValid()) {
                                     m1.calc_params();
@@ -136,7 +133,7 @@ int main(int argn, char* argv[]) {
                                     if (u < pow(exp(l1 - l0), m.beta)) {
                                         m = m1;
                                         chains[iic] = m1;
-                                        accepted["perturb"]++;
+                                        accepted[iic]["perturb"]++;
                                     }
                                 }
                             }
@@ -147,7 +144,7 @@ int main(int argn, char* argv[]) {
                     break;
 
                 case move::birth: {
-                    proposed["birth"]++;
+                    proposed[iic]["birth"]++;
 //                    boost::timer::auto_cpu_timer tm;
                     if (m.nodes.size() < max_interfaces) {
                         auto m1 = birth(m, birthType::any);
@@ -162,7 +159,7 @@ int main(int argn, char* argv[]) {
                             if (u < pow(exp(l1 - l0), m.beta)) {
                                 m = m1;
                                 chains[iic] = m1;
-                                accepted["birth"]++;
+                                accepted[iic]["birth"]++;
                             }
                         }
 
@@ -174,7 +171,7 @@ int main(int argn, char* argv[]) {
                 }
                     break;
                 case move::death: {
-                    proposed["death"]++;
+                    proposed[iic]["death"]++;
 //                    boost::timer::auto_cpu_timer tm;
                     if (m.nodes.size() > 1) {
                         auto m1 = death(m);
@@ -189,7 +186,7 @@ int main(int argn, char* argv[]) {
                             if (u < pow(exp(l1 - l0), m.beta)) {
                                 m = m1;
                                 chains[iic] = m1;
-                                accepted["death"]++;
+                                accepted[iic]["death"]++;
                             }
                         }
                     }
@@ -202,7 +199,7 @@ int main(int argn, char* argv[]) {
                 case move::iso_switch: {
 //                    boost::timer::auto_cpu_timer tm;
                     for (int n = 0; n < m.nodes.size(); n++) { // try to switch each node independently
-                        proposed["iso_switch"]++;
+                        proposed[iic]["iso_switch"]++;
                         auto m1 = iso_switch(m, n);
                         if (m1.isInPrior() && m1.isValid()) {
                             m1.calc_params();
@@ -215,7 +212,7 @@ int main(int argn, char* argv[]) {
                             if (u < pow(exp(l1 - l0), m.beta)) {
                                 m = m1;
                                 chains[iic] = m1;
-                                accepted["iso_switch"]++;
+                                accepted[iic]["iso_switch"]++;
                             }
                         }
                     }
@@ -225,7 +222,7 @@ int main(int argn, char* argv[]) {
             }
 
             // fill the histogram
-            if ( (itern > 1000)&& (m.beta == 1)) { // only collect samples from t0 chain
+            if ((itern > 3000) && (m.beta == 1)) { // only collect samples from t0 chain
                 hll(m.logL);
                 for (int i = 0; i < n_z_bins; i++) {
                     auto dz = (prior[paramType::depth].second - prior[paramType::depth].first) /
@@ -254,20 +251,23 @@ int main(int argn, char* argv[]) {
         /*===============================================================
          * PARALLEL TEMPERING SECTION
         =================================================================*/
-        if ((itern + 1) % 100 == 0){ // propose exchange between chains
-            boost::random::uniform_int_distribution<int> chain_picker(0,n_temp-1);
-            for (auto i = 0; i < n_temp * n_temp; i++){ // propose n^2 switches
-                int j = chain_picker(gen);
-                int k = chain_picker(gen);
-                if(j!=k){
-                    auto bj = chains[j].beta;
-                    auto bk = chains[k].beta;
-                    if(urn(gen) <  pow(exp(chains[j].logL - chains[k].logL),(bk-bj))){
-                        chains[j].setBeta(bk);
-                        chains[k].setBeta(bj);
-                    }
-                }
-            }
+        if ((itern + 1) % 100 == 0) { // propose exchange between chains
+            parallel_tempering_swap(n_temp, chains);
+//            boost::random::uniform_int_distribution<int> chain_picker(0,n_temp-1);
+//            for (auto i = 0; i < n_temp * n_temp; i++){ // propose n^2 switches
+//                int j = chain_picker(gen);
+//                int k = chain_picker(gen);
+//                if(j!=k){
+//                    auto bj = chains[j].beta;
+//                    auto bk = chains[k].beta;
+//                    if(urn(gen) <  pow(exp(chains[j].logL - chains[k].logL),(bk-bj))){
+//                        chains[j].setBeta(bk);
+//                        chains[k].setBeta(bj);
+//                        std::swap(chains[j],chains[k]); // i-th temperature remains associated to the i-th chain
+//                    }
+//                }
+//            }
+//        }
         }
     }
 // print dataset statistics
@@ -295,22 +295,23 @@ int main(int argn, char* argv[]) {
     }
     std::cout << "time spent in log(L) subroutine: " << timer.format() << "\n";
 #ifdef _OMP
-#pragma omp parallel
-    int nt = omp_get_thread_num();
-    {
-        if (omp_get_thread_num() == 0) {
-            std::cout << "program run in parallel with OMP using a team of " << omp_get_num_threads() << " threads.\n";
-        }
-    }
-
+    std::cout << "program run in parallel with OMP using a team of 4 threads.\n";
 #else
     std::cout << "program run serial on single thread.\n";
 #endif
-    std::cout << std::setw(12) << "move" << std::setw(12) << "proposed"    << std::setw(12) <<  "accepted"   << std::setw(12) << "ratio" << std::endl;
-    for (auto k: proposed){
-        auto key=k.first;
-        auto ratio = static_cast<double>(accepted[key])/static_cast<double>(proposed[key]);
-        std::cout << std::setw(12) << key    << std::setw(12) << proposed[key] << std::setw(12) << accepted[key] << std::setw(12) <<  ratio  << std::endl;
+    std::ofstream faccst(base_filename +"_acc_stat.res");
+    for (int iic=0; iic<n_temp; iic++) {
+        faccst << "Acceptance statistics for temperature T = " << pow(chains[iic].beta,-1) << "\n";
+        faccst << std::setw(12) << "move" << std::setw(12) << "proposed" << std::setw(12) << "accepted"
+               << std::setw(12) << "ratio" << std::endl;
+        for (const auto& k: proposed[iic]) {
+            auto key = k.first;
+            auto ratio = static_cast<double>(accepted[iic][key]) / static_cast<double>(proposed[iic][key]);
+            faccst    << std::setw(12) << key << std::setw(12) << proposed[iic][key] << std::setw(12)
+                      << accepted[iic][key] << std::setw(12) << ratio << std::endl;
+        }
+        faccst << "\n\n";
     }
+    faccst.close();
     return 0;
 }

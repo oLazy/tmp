@@ -40,46 +40,45 @@ namespace mtobj {
     typedef std::complex<double> dcomp;
     typedef std::pair<double, double> limits;
 
-    typedef std::map<double,double> Cov0;
-    typedef std::map<double,MTTensor> Dataset;
-    MTComplex static constexpr ic{0,1};
+    typedef std::map<double, double> Cov0;
+    typedef std::map<double, MTTensor> Dataset;
+    MTComplex static constexpr ic{0, 1};
     double static constexpr pi{M_PI};
 
-    class ModelOutOfPrior: public std::exception
-    {
-        virtual const char* what() const throw()
-        {
+    class ModelOutOfPrior : public std::exception {
+        virtual const char *what() const throw() {
             return "Model out prior";
         }
     };
 
 
-    MTTensor rot_z(MTTensor const &za, double beta_rad){
+    MTTensor rot_z(MTTensor const &za, double beta_rad) {
         if (std::isnan(beta_rad)) beta_rad = 0.;
         MTTensor result;
-        double co2 = cos(2.*beta_rad);
-        double si2 = sin(2.*beta_rad);
+        double co2 = cos(2. * beta_rad);
+        double si2 = sin(2. * beta_rad);
 
-        dcomp sum1 = za.xx+za.yy;
-        dcomp sum2 = za.xy+za.yx;
+        dcomp sum1 = za.xx + za.yy;
+        dcomp sum2 = za.xy + za.yx;
 
-        dcomp dif1 = za.xx-za.yy;
-        dcomp dif2 = za.xy-za.yx;
+        dcomp dif1 = za.xx - za.yy;
+        dcomp dif2 = za.xy - za.yx;
 
-        result.xx = 0.5*(sum1+dif1*co2+sum2*si2);
-        result.xy = 0.5*(dif2+sum2*co2-dif1*si2);
-        result.yx = 0.5*(-dif2+sum2*co2-dif1*si2);
-        result.yy = 0.5*(sum1-dif1*co2-sum2*si2);
+        result.xx = 0.5 * (sum1 + dif1 * co2 + sum2 * si2);
+        result.xy = 0.5 * (dif2 + sum2 * co2 - dif1 * si2);
+        result.yx = 0.5 * (-dif2 + sum2 * co2 - dif1 * si2);
+        result.yy = 0.5 * (sum1 - dif1 * co2 - sum2 * si2);
         return result;
     }
 
-    [[nodiscard]] inline dcomp dfp(dcomp const &x) noexcept{
-        return 1.0+ std::exp(-2.0*x);
+    [[nodiscard]] inline dcomp dfp(dcomp const &x) noexcept {
+        return 1.0 + std::exp(-2.0 * x);
     }
 
-    [[nodiscard]] inline dcomp dfm(dcomp const &x) noexcept{
-        return 1.0- std::exp(-2.0*x);
+    [[nodiscard]] inline dcomp dfm(dcomp const &x) noexcept {
+        return 1.0 - std::exp(-2.0 * x);
     }
+
     enum paramType {
         begin = 0, depth = begin, sigmaMean, sigmaRatio, beta, end
     };
@@ -135,16 +134,16 @@ namespace mtobj {
             return value;
         }
 
-        void setType(paramType type) {
-            Parameter::type = type;
+        void setType(paramType _type) {
+            Parameter::type = _type;
         }
 
         void setIsActive(bool isActive) {
             Parameter::active = isActive;
         }
 
-        void setValue(double value) {
-            Parameter::value = value;
+        void setValue(double _value) {
+            Parameter::value = _value;
         }
 
         friend std::ostream &operator<<(std::ostream &os, const Parameter &parameter) {
@@ -155,7 +154,7 @@ namespace mtobj {
 
     class ModelError : public std::logic_error {
     public:
-        ModelError(const std::string &string) : logic_error(string) { message = string; }
+        explicit ModelError(const std::string &string) : logic_error(string) { message = string; }
 
     private:
         std::string message;
@@ -219,14 +218,6 @@ namespace mtobj {
                                                 beta);
         }
 
-//    friend std::ostream &operator<<(std::ostream &os, const node &node) {
-//        os << "params: \n";
-//        for (int i = paramType::begin; i != paramType::end; i++){
-//            os << params[i] << "\n";
-//        }
-//        return os;
-//    }
-
     private:
         friend boost::serialization::access;
 
@@ -237,15 +228,15 @@ namespace mtobj {
 
     };
 
-    node generateIsoNode(Prior const &p){
+    node generateIsoNode(Prior const &p) {
 
         double const mind = p.at(paramType::depth).first;
         double const maxd = p.at(paramType::depth).second;
-        double depth = boost::random::uniform_real_distribution<double>(mind,maxd)(gen);
+        double depth = boost::random::uniform_real_distribution<double>(mind, maxd)(gen);
 
         double const mins = p.at(paramType::sigmaMean).first;
         double const maxs = p.at(paramType::sigmaMean).second;
-        double sm = boost::random::uniform_real_distribution<double>(mins,maxs)(gen);
+        double sm = boost::random::uniform_real_distribution<double>(mins, maxs)(gen);
         node res(depth, sm);
         return res;
     }
@@ -262,6 +253,7 @@ namespace mtobj {
         }
         return res;
     }
+
     struct model {
         model() = default;
 
@@ -274,13 +266,8 @@ namespace mtobj {
         } // implement copy constructor, it must copy the nodes but not other fields.
 
         model &operator=(const model &m) = default;
-//        model &operator=(const model &m) {
-//            model res;
-//            for (const auto &n:m.nodes) {
-//                this->nodes.push_back(n);
-//            }
-//            return *this;
-//        } // implement copy assignment, it must copy the nodes but not other fields.
+
+        // fields ::
         std::vector<node> nodes;
         std::vector<double> _h, _al, _at, _blt;
         double logL{0};
@@ -291,7 +278,7 @@ namespace mtobj {
         node &operator[](int i) { return nodes[i]; }
 
         node getNode(double depth) {
-            auto nnode = nodes.size()-1;
+            auto nnode = nodes.size() - 1;
             auto deep_z = nodes[nnode].params[paramType::depth].getValue();
             for (int i = 0; i < nnode; i++) {
                 auto z1 = nodes[i + 1].params[paramType::depth].getValue();
@@ -320,15 +307,8 @@ namespace mtobj {
             }
             std::vector<double> diff(z.size());
             std::adjacent_difference(z.begin(), z.end(), diff.begin());
-//            std::cout << "diff elements:\n";
-//            for (auto d:diff) {
-//                std::cout << d << "\n";
-//            }
+
             if (std::any_of(diff.begin()++, diff.end(), [](double x) { return x < 0; })) {
-//                for (auto d = diff.begin()++; d != diff.end(); d++) {
-//                    std::cout << "if any=true loop\n";
-//                    std::cout << *d << "\n";
-//                }
                 return false;
             }
             return true;
@@ -348,11 +328,12 @@ namespace mtobj {
             };
             return std::all_of(nodes.begin(), nodes.end(), params_in_prior);
         }
-        void sort_nodes(){
-            auto comp = [](const node& lhs, const node& rhs) {
+
+        void sort_nodes() {
+            auto comp = [](const node &lhs, const node &rhs) {
                 return lhs.params.at(paramType::depth).getValue() < rhs.params.at(paramType::depth).getValue();
             };
-            std::sort(nodes.begin(),nodes.end(),comp);
+            std::sort(nodes.begin(), nodes.end(), comp);
         }
 
         void calc_params() {
@@ -382,7 +363,7 @@ namespace mtobj {
             }
         }
 
-        MTTensor operator()(const double &x) const noexcept {
+        MTTensor operator()(const double &x) const noexcept { // pek algorithm, my implementation. TESTED
 
             dcomp k0{(1.0 - ic) * 2. * pi * pow(10., -3.) / sqrt(10. * x)};
             // compute the impedance on the top of the homogeneous
@@ -397,7 +378,10 @@ namespace mtobj {
             double bs = _blt[i_layer];
             double a1is = 1. / sqrt(a1);
             double a2is = 1. / sqrt(a2);
-            MTTensor z{{0,0},{0,0},{0,0},{0,0}};
+            MTTensor z{{0, 0},
+                       {0, 0},
+                       {0, 0},
+                       {0, 0}};
             MTTensor z_rot;
             MTTensor z_bot;
             z_rot.xx = 0.;
@@ -502,6 +486,7 @@ namespace mtobj {
 
     private:
         friend boost::serialization::access;
+
         template<typename Archive>
         void serialize(Archive &ar, const unsigned int version) {
             ar & nodes;
@@ -519,22 +504,26 @@ namespace mtobj {
         return mp;
     }
 
-    model death(model const &m0){
-        if(m0.nodes.size()<2){
+    model death(model const &m0) {
+        if (m0.nodes.size() < 2) {
             throw ModelOutOfPrior();
         }
-        boost::random::uniform_int_distribution<int> r_node(1,m0.nodes.size()-1);
+        boost::random::uniform_int_distribution<int> r_node(1, m0.nodes.size() - 1);
         auto nn = r_node(gen);
         model res;
         int i{0};
-        for (auto n:m0.nodes){
-            if(i!=nn) res.nodes.push_back(n); // copy only "live" nodes
+        for (auto n:m0.nodes) {
+            if (i != nn) res.nodes.push_back(n); // copy only "live" nodes
             i++;
         }
         res.setBeta(m0.beta);
         return res;
     }
-    enum class birthType{iso, anis, any};
+
+    enum class birthType {
+        iso, anis, any
+    };
+
     model birth(model const &m0, birthType t) {
         node newNode;
         switch (t) {
@@ -568,14 +557,14 @@ namespace mtobj {
         return m1;
     }
 
-    model iso_switch(model const &m0, int node_id){
+    model iso_switch(model const &m0, int node_id) {
         model mp = m0;
-        if(mp[node_id].params[paramType::sigmaRatio].isActive()){
+        if (mp[node_id].params[paramType::sigmaRatio].isActive()) {
             mp[node_id].params[paramType::sigmaRatio].setValue(nan(""));
             mp[node_id].params[paramType::beta].setValue(nan(""));
             mp[node_id].params[paramType::sigmaRatio].setIsActive(false);
             mp[node_id].params[paramType::beta].setIsActive(false);
-        }else{
+        } else {
             // generate ratio
             double const min = prior.at(paramType::sigmaRatio).first;
             double const max = prior.at(paramType::sigmaRatio).second;
@@ -593,6 +582,24 @@ namespace mtobj {
         return mp;
     }
 
+    void parallel_tempering_swap(int n_temp, std::vector<model> &chains){
+        boost::random::uniform_int_distribution<int> chain_picker(0,n_temp-1);
+        for (auto i = 0; i < n_temp * n_temp; i++){ // propose n^2 switches
+            int j = chain_picker(gen);
+            int k = chain_picker(gen);
+            if(j!=k){
+                auto bj = chains[j].beta;
+                auto bk = chains[k].beta;
+                if(urn(gen) <  pow(exp(chains[j].logL - chains[k].logL),(bk-bj))){
+                    chains[j].setBeta(bk);
+                    chains[k].setBeta(bj);
+                    std::swap(chains[j],chains[k]); // i-th temperature remains associated to the i-th chain
+                }
+            }
+        }
+    }
+
+
 //    model isoJump(model const &m0, int node_id){
 //
 //    }
@@ -606,65 +613,80 @@ namespace mtobj {
  */
     double logL(model const &m,
                 std::map<double, MTTensor> const &d,
-                std::map<double, double> const &cov){
+                std::map<double, double> const &cov) {
 
         static const double f{8}; // 8=4 real and 4 imag parts
-        auto N=d.size()*f;
-        auto c=-N*0.5*log(2*M_PI);
+        auto N = d.size() * f;
+        auto c = -N * 0.5 * log(2 * M_PI);
         double sum_log_sigma{0};
         double sum_res{0};
 #ifdef _OMP
-        #pragma omp parallel for reduction (+:sum_log_sigma,sum_res)
-        for (int i=0; i<d.size(); i++){
+#pragma omp parallel for reduction (+:sum_log_sigma, sum_res)
+        for (int i = 0; i < d.size(); i++) {
             auto it = d.begin();
-            std::advance(it,i);
+            std::advance(it, i);
             auto dat = *it;
 #else
         for (auto dat: d){
 #endif
-            double const T=dat.first;
-            MTTensor const z_meas=dat.second;
-            MTTensor z_pred=m(T);
+            double const T = dat.first;
+            MTTensor const z_meas = dat.second;
+            MTTensor z_pred = m(T);
             auto const sigma = cov.at(T);
-            sum_log_sigma+=f*log(sigma);
-            sum_res+=pow((std::real(z_meas.xx)-std::real(z_pred.xx))/sigma,2);
-            sum_res+=pow((std::real(z_meas.xy)-std::real(z_pred.xy))/sigma,2);
-            sum_res+=pow((std::real(z_meas.yx)-std::real(z_pred.yx))/sigma,2);
-            sum_res+=pow((std::real(z_meas.yy)-std::real(z_pred.yy))/sigma,2);
-            sum_res+=pow((std::imag(z_meas.xx)-std::imag(z_pred.xx))/sigma,2);
-            sum_res+=pow((std::imag(z_meas.xy)-std::imag(z_pred.xy))/sigma,2);
-            sum_res+=pow((std::imag(z_meas.yx)-std::imag(z_pred.yx))/sigma,2);
-            sum_res+=pow((std::imag(z_meas.yy)-std::imag(z_pred.yy))/sigma,2);
+            sum_log_sigma += f * log(sigma);
+            sum_res += pow((std::real(z_meas.xx) - std::real(z_pred.xx)) / sigma, 2);
+            sum_res += pow((std::real(z_meas.xy) - std::real(z_pred.xy)) / sigma, 2);
+            sum_res += pow((std::real(z_meas.yx) - std::real(z_pred.yx)) / sigma, 2);
+            sum_res += pow((std::real(z_meas.yy) - std::real(z_pred.yy)) / sigma, 2);
+            sum_res += pow((std::imag(z_meas.xx) - std::imag(z_pred.xx)) / sigma, 2);
+            sum_res += pow((std::imag(z_meas.xy) - std::imag(z_pred.xy)) / sigma, 2);
+            sum_res += pow((std::imag(z_meas.yx) - std::imag(z_pred.yx)) / sigma, 2);
+            sum_res += pow((std::imag(z_meas.yy) - std::imag(z_pred.yy)) / sigma, 2);
         } // end of omp parallel region. Here sum_res and sum_sigma should be reduced
-        return c - sum_log_sigma -0.5*sum_res;
+        return c - sum_log_sigma - 0.5 * sum_res;
     }
+
 
     double expectedLogL(
             std::map<double, MTTensor> const &d,
-            std::map<double, double> const &cov){
+            std::map<double, double> const &cov) {
         static const double f{8}; // 8=4 real and 4 imag parts
-        auto N=d.size()*f;
-        auto c=-N*0.5*log(2*M_PI);
+        auto N = d.size() * f;
+        auto c = -N * 0.5 * log(2 * M_PI);
         double sum_log_sigma{0};
-        for (auto dat: d){
-            double const T=dat.first;
-            MTTensor const z_meas=dat.second;
+        for (auto dat: d) {
+            double const T = dat.first;
+            MTTensor const z_meas = dat.second;
             auto const sigma = cov.at(T);
-            sum_log_sigma+=f*log(sigma);
+            sum_log_sigma += f * log(sigma);
         }
-        return c - sum_log_sigma -0.5*N;
+        return c - sum_log_sigma - 0.5 * N;
     }
 
-    double varLogL(std::map<double, MTTensor> const &d){
+    double varLogL(std::map<double, MTTensor> const &d) {
         static const double f{8}; // 8=4 real and 4 imag parts
-        auto N=d.size()*f;
-        return 2*N;
+        auto N = d.size() * f;
+        return 2 * N;
     }
 
-    double stdLogL(std::map<double, MTTensor> const &d){
+    double stdLogL(std::map<double, MTTensor> const &d) {
         static const double f{8}; // 8=4 real and 4 imag parts
-        auto N=d.size()*f;
-        return sqrt(2*N);
+        auto N = d.size() * f;
+        return sqrt(2 * N);
     }
+
+    void calc_beta(int n_temp, double max_temp, model &m, std::vector<model> &chains) { // make tempering schedule
+        double length = log10(max_temp);
+        double delta = length / static_cast<double>(n_temp - 1);
+        for (int i = 0; i < n_temp; i++) {
+            double temperature = pow(10, static_cast<double>(i) * delta);
+            double beta = pow(temperature, -1);
+            std::cout << "t[" << i << "]: " << temperature << "\n";
+            m.setBeta(beta);
+            chains.push_back(m);
+        }
+    }
+
 }
+
 #endif //MT1DANISMODELPARAMS_OBJECTS_H
