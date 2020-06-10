@@ -42,11 +42,7 @@ struct MTTensor {
     MTTensor dot_sqrt() const;
     MTTensor dot_log() const;
     MTTensor dot_atomic_log() const;
-    double maxAbsImpedance() const{
-        std::array<double,4> absZ({std::abs(xx), std::abs(xy), std::abs(yx), std::abs(yy)});
-        double res = *(std::max_element(absZ.begin(), absZ.end()));
-        return res;
-    };
+    double maxAbsImpedance() const;
 
     /**
      *

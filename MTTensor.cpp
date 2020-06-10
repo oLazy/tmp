@@ -4,6 +4,7 @@
 
 #include "MTTensor.h"
 #include <array>
+#include<algorithm>
 MTTensor MTTensor::operator+(MTTensor const &rhs) const{
     return {{this->xx + rhs.xx},
             {this->xy + rhs.xy},
@@ -113,6 +114,12 @@ MTTensor MTTensor::dot_atomic_divide(const MTTensor &rhs) const {
                     {std::real(yx)/std::real(rhs.yx), std::imag(yx)/std::imag(rhs.yx)},
                     {std::real(yy)/std::real(rhs.yy), std::imag(yy)/std::imag(rhs.yy)});
 }
+
+double MTTensor::maxAbsImpedance() const {
+    std::array<double,4> absZ({std::abs(xx), std::abs(xy), std::abs(yx), std::abs(yy)});
+    double res = *(std::max_element(absZ.begin(), absZ.end()));
+    return res;
+};
 
 MTTensor abs(MTTensor const &z) {
     return MTTensor({std::abs(z.xx),std::abs(z.xx)},
