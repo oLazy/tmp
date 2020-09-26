@@ -23,8 +23,8 @@ int main(int argc, char* argv[]){
     std::vector<double> nrxx, nrxy, nryx, nryy;
     std::vector<double> nixx, nixy, niyx, niyy;
     std::vector<double> errorbar;
-    std::map<double, MTTensor> dataset;
-    std::map<double, double> cov_0;
+    std::map<double, MTTensor> dataset; // period, tensor
+    std::map<double, double> cov_0; // period, variance
 
     for (int iper = -30; iper< 51; ++iper) {
         double T = pow(10., 0.1 * double(iper));

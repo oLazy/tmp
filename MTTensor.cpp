@@ -121,6 +121,15 @@ double MTTensor::maxAbsImpedance() const {
     return res;
 };
 
+double MTTensor::meanAbsImpedance() const {
+    double axx = std::abs(xx);
+    double axy = std::abs(xy);
+    double ayx = std::abs(yx);
+    double ayy = std::abs(yy);
+    return 0.25*(axx+axy+ayx+ayy)
+
+}
+
 MTTensor abs(MTTensor const &z) {
     return MTTensor({std::abs(z.xx),std::abs(z.xx)},
                     {std::abs(z.xy),std::abs(z.xy)},

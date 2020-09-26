@@ -43,6 +43,7 @@ struct MTTensor {
     MTTensor dot_log() const;
     MTTensor dot_atomic_log() const;
     double maxAbsImpedance() const;
+    double meanAbsImpedance() const;
 
     /**
      *
