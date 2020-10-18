@@ -126,7 +126,7 @@ double MTTensor::meanAbsImpedance() const {
     double axy = std::abs(xy);
     double ayx = std::abs(yx);
     double ayy = std::abs(yy);
-    return 0.25*(axx+axy+ayx+ayy)
+    return 0.25*(axx+axy+ayx+ayy);
 
 }
 
