@@ -5,15 +5,17 @@
 #include "global.h"
 #include "gnuplot-iostream.h"
 #include <boost/tuple/tuple.hpp>
+#include <boost/archive/binary_iarchive.hpp>
 
 int main(int argc, char* argv[]){
     const double stdev{0.03};
     std::ifstream is(argv[1]);
     std::string model_filename{argv[1]};
+    boost::archive::binary_iarchive ia(is);
     std::string out_f = model_filename.replace(model_filename.length()-4,4,"_rep.dat");
 //    std::cout << out_f << "\n";
     std::string out_file_name{out_f};
-    boost::archive::text_iarchive ia(is);
+//    boost::archive::text_iarchive ia(is);
     mtobj::model m;
     ia >> m;
     m.calc_params();

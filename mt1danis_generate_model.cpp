@@ -7,6 +7,7 @@
 #include <string>
 #include "gnuplot-iostream.h"
 #include <boost/tuple/tuple.hpp>
+#include <boost/archive/binary_oarchive.hpp>
 
 int main(int argn, char* argv[]){
     if (argn > 2){
@@ -14,7 +15,7 @@ int main(int argn, char* argv[]){
         return 1;
     }
     std::string model_filename{argv[1]};
-    std::string out_f = model_filename.replace(model_filename.length()-4,4,".dat");
+    std::string out_f = model_filename.replace(model_filename.length()-4,4,".bin");
     std::string out_file_name{out_f};
     std::ifstream is(argv[1]);
     std::string line;
@@ -42,7 +43,7 @@ int main(int argn, char* argv[]){
     // check node 0 has depth 0
     if(m.nodes[0].params[mtobj::paramType::depth].getValue() == 0){
         std::ofstream os(out_file_name);
-        boost::archive::text_oarchive oa(os);
+        boost::archive::binary_oarchive oa(os);
         oa << m ;
     }else{
         return 2;
