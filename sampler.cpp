@@ -7,6 +7,7 @@
 #include <chrono>
 #include <boost/timer/timer.hpp>
 #include <boost/tuple/tuple.hpp>
+#include <boost/archive/binary_iarchive.hpp>
 #include <iomanip>
 
 typedef std::chrono::high_resolution_clock Clock;
@@ -47,6 +48,7 @@ int main(int argn, char* argv[]) {
     Dataset d;
     std::ifstream is(base_filename+"_rep.dat");
     boost::archive::text_iarchive ia(is);
+//    boost::archive::binary_iarchive ia(is);
     ia >> d >> cov;
     is.close();
     // init model zero. it is a conductive crust lying over a resistive basement
