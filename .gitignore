@@ -1,3 +1,6 @@
 *build*/
 .idea/
+input_folder/*.pdf
+input_folder/*.bin
+input_folder/*.dat
 .DS_Store
