@@ -40,6 +40,7 @@ int main(int argc, char* argv[]){
         os << "max_T="<<3<<"\n";
         os << "n_T="<<81<<"\n";
         os << "model-filename=cg_model_1.bin";
+        return 2;
     }
 
     const double stdev=vm["std_dev"].as<double>();
