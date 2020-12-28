@@ -3,4 +3,5 @@
 input_folder/*.pdf
 input_folder/*.bin
 input_folder/*.dat
+*.cfg
 .DS_Store
