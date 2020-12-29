@@ -2,17 +2,22 @@
 // Created by Eric Mandolesi on 03/06/2020.
 //
 #include "objects.h"
-#include "global.h"
 #include <string>
 #include <chrono>
 #include <boost/timer/timer.hpp>
 #include <boost/tuple/tuple.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <iomanip>
+#include <boost/program_options.hpp>
+#include "global.h"
 
 typedef std::chrono::high_resolution_clock Clock;
 using namespace mtobj;
 enum class move{perturb,birth,death,iso_switch};
+
+boost::program_options::options_description parse_cmdline(int argc, char *argv[], boost::program_options::variables_map& p_vm);
+boost::program_options::options_description parse_config(boost::program_options::variables_map& p_vm);
+
 int main(int argn, char* argv[]) {
     if (argn != 2) {
         std::cout << "Error! this program requires a single argument.\n";

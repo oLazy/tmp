@@ -2,13 +2,13 @@
 // Created by Eric Mandolesi on 30/05/2020.
 //
 #include "objects.h"
-#include "global.h"
 #include <sstream>
 #include <string>
 #include "gnuplot-iostream.h"
 #include <boost/tuple/tuple.hpp>
 #include <boost/archive/binary_oarchive.hpp>
-
+#include <boost/program_options.hpp>
+#include "global.h"
 int main(int argn, char* argv[]){
     if (argn > 2){
         std::cout << "Error! this program requires a single argument.\n";

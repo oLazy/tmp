@@ -2,15 +2,12 @@
 // Created by Eric Mandolesi on 31/05/2020.
 //
 #include "objects.h"
-#include "global.h"
+
 #include "gnuplot-iostream.h"
 #include <boost/tuple/tuple.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/program_options.hpp>
-
-// GLOBAL
-// program configuration
-boost::program_options::variables_map vm;
+#include "global.h"
 
 boost::program_options::options_description parse_cmdline(int argc, char *argv[], boost::program_options::variables_map& p_vm);
 boost::program_options::options_description parse_config(boost::program_options::variables_map& p_vm);
