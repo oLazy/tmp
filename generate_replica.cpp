@@ -216,5 +216,4 @@ boost::program_options::options_description parse_config(boost::program_options:
     }
     po::notify(p_vm);
     return config;
-//    std::cout << config << std::endl;
 }

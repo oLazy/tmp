@@ -19,6 +19,49 @@ boost::program_options::options_description parse_cmdline(int argc, char *argv[]
 boost::program_options::options_description parse_config(boost::program_options::variables_map& p_vm);
 
 int main(int argn, char* argv[]) {
+
+
+    auto desc = parse_cmdline(argn, argv, vm);
+    auto config_desc = parse_config(vm);
+    if(vm.count("help")){
+        std::cout << desc <<std::endl;
+        std::cout << config_desc << std::endl;
+        return 0;
+    }
+    auto conf_filename = vm["config"].as<std::string>();
+    auto isBuildingConfig = vm["init_config"].as<bool>();
+    if(isBuildingConfig) {
+        std::ofstream os;
+        os.open(conf_filename, std::ios::trunc);
+// Algorithm section
+        os << "n-interface-max=8" << "\n";
+        os << "n-sigma-bins=512" << "\n";
+        os << "n-z-bins=1024" << "\n";
+        os << "n-temperatures=7" << "\n";
+        os << "max-temperature=1000." << "\n";
+        os << "max-depth=10000." << "\n";
+        os << "n-max-iterations=300000" << "\n";
+        os << "n-burn-in-iterations=30000" << "\n";
+        os << "random-seed=23" << "\n";
+       // Distribution section
+        os << "prior-min-sigma-mean=-5" << "\n";
+        os << "prior-max-sigma-mean=2" << "\n";
+        os << "prior-min-sigma-ratio=-3" << "\n";
+        os << "prior-max-sigma-ratio=0" << "\n";
+        os << "prior-min-beta-strike=-90" << "\n";
+        os << "prior-max-beta-strike=90" << "\n";
+        os << "proposal-scale=20" << "\n";
+        // Receipt weights
+        os <<"perturb=0.7" << "\n";
+        os <<"birth=0.1" << "\n";
+        os <<"death=0.1" << "\n";
+        os <<"iso-switch=0.1" << "\n";
+        return 0;
+    }
+    std::cout << vm["iso-switch"].as<double>() << "\n";
+    std::cout << "running\n";
+    return 0;
+
     if (argn != 2) {
         std::cout << "Error! this program requires a single argument.\n";
         return 1;
@@ -332,4 +375,63 @@ int main(int argn, char* argv[]) {
     }
     faccst.close();
     return 0;
+}
+
+/* parsing program options and config */
+
+boost::program_options::options_description parse_cmdline(int argc, char *argv[], boost::program_options::variables_map& p_vm){
+    namespace po = boost::program_options;
+    po::options_description generic("Generic options");
+    generic.add_options()
+            ("help,h", "Display this message and exit.")
+            ("config,C", po::value<std::string>()->default_value("MTd1ASampler.cfg"), "Specify configuration file path.")
+            ("init_config,c", po::value<bool>()->default_value(false), "Create simple configuration file and exit.")
+            ("Converge,v","Ignore the maximum number of iteration set and terminate the sampling once convergence can be defended (see paper for convergence criterion).")
+            ("Infer-burn-in,b","Ignore number of iterations to be used in burn-in phase and infer it from the expected log-likelihood (see paper for end of burn-in criterion).")
+            ;
+    po::store(po::parse_command_line(argc, argv, generic), p_vm);
+    po::notify(p_vm);
+    return generic;
+}
+boost::program_options::options_description parse_config(boost::program_options::variables_map& p_vm){
+    namespace po = boost::program_options;
+    po::options_description config("Configuration");
+    config.add_options()
+            // Algorithm section
+            ("n-interface-max", po::value<int>(), "Maximum number of interfaces in the partition model. It MUST include the earth/air interface.")
+            ("n-sigma-bins", po::value<int>(), "Number of bins to be used in sigma-mean discretization, in log space (for integrals and histograms).")
+            ("n-z-bins", po::value<int>(), "Number of bins to be used in depth discretization (for integrals and histograms).")
+            ("n-temperatures", po::value<int>(), "Number of temperatures to be used for parallel tempering."
+                                                 "WARNING: the sampler uses two independent chains at temperature T=1 to check for MC convergence, "
+                                                 "therefore the total number of parallel chains used in a sampler run will be n-temperatures + 1.")
+            ("max-temperature", po::value<double>(), "Value for T_max, must be greater than 1.")
+            ("max-depth", po::value<double>(), "Value for the max depth for the deeper interface.")
+            ("n-max-iterations", po::value<int>(), "Maximum number of iterations. This number includes burn-in. "
+                                                   "If the flag --Converge is used, this value will be ignored. WARNING: convergence might be slow or impossible.")
+            ("n-burn-in-iterations", po::value<int>(), "Maximum number of iterations to be used in the burn-in phase. If the flag --Infer-burn-in is used than this value will be ignored.")
+            ("random-seed", po::value<int>(), "Seed to initialize random engine.")
+            // Distribution section
+            ("prior-min-sigma-mean",po::value<double>(), "lower bound for log(sigma-mean).")
+            ("prior-max-sigma-mean",po::value<double>(), "upper bound for log(sigma-mean).")
+            ("prior-min-sigma-ratio",po::value<double>(), "lower bound for log(sigma_low/sigma_high). Must be negative.")
+            ("prior-max-sigma-ratio",po::value<double>()->default_value(0), "upper bound for log(sigma_low/sigma_high). Must be less or equal to zero. Ideally exactly 0.")
+            ("prior-min-beta-strike",po::value<double>()->default_value(-90), "lower bound for beta_strike, in Deg.")
+            ("prior-max-beta-strike",po::value<double>()->default_value(90), "upper bound for beta_strike, in Deg.")
+            ("proposal-scale", po::value<double>(), "The proposal is defined as a normal distribution with mean = current-value and std = (prior-upper-bound - prior-lower-bound) / scale")
+            // Receipt weights
+            ("perturb", po::value<double>(), "Probability weight for perturbation swap move.")
+            ("birth", po::value<double>(), "Probability weight for birth move.")
+            ("death", po::value<double>(), "Probability weight for death move.")
+            ("iso-switch", po::value<double>(), "Probability weight for isotropy/anisotropy switch swap move.")
+        // Filenames
+
+        // initial model
+
+            ;
+    auto isGeneratingConfig = p_vm["init_config"].as<bool>();
+    if(not isGeneratingConfig and not p_vm.count("help")){
+        po::store(po::parse_config_file(p_vm["config"].as<std::string>().c_str(), config),p_vm);
+    }
+    po::notify(p_vm);
+    return config;
 }
