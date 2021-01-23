@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <boost/histogram.hpp>
 #include <boost/timer/timer.hpp>
+#include <boost/program_options.hpp>
 #ifdef _OMP
 #include <omp.h>
 #endif
@@ -102,6 +103,21 @@ namespace mtobj {
         proposal[paramType::sigmaMean] = (mean.second - mean.first) / scale;
         proposal[paramType::sigmaRatio] = (ratio.second - ratio.first) / scale;
         proposal[paramType::beta] = (beta.second - beta.first) / scale;
+    }
+
+    bool isLogLhoodExpected(double logL, double ElogL, double logLStd, double beta, int nStd=3){
+        auto semi_interval = (double)nStd*pow(beta,-1)*logLStd;
+        if( ElogL-semi_interval <= logL)return true; // only check for lower bound
+        return false;
+    }
+
+    std::tuple<double, double, double, double> balanceReceiptWeights(boost::program_options::variables_map& vm_p){
+        auto pp = vm_p["perturb"].as<double>();
+        auto pb = vm_p["birth"].as<double>();
+        auto pd = vm_p["death"].as<double>();
+        auto ps = vm_p["iso-switch"].as<double>();
+        auto sum{pp+pb+pd+ps};
+        return std::make_tuple(pp/sum,pb/sum,pd/sum,ps/sum);
     }
 
     class Parameter {
@@ -582,9 +598,10 @@ namespace mtobj {
         return mp;
     }
 
-    void parallel_tempering_swap(int n_temp, std::vector<model> &chains){
-        boost::random::uniform_int_distribution<int> chain_picker(0,n_temp-1);
-        for (auto i = 0; i < n_temp * n_temp; i++){ // propose n^2 switches
+    void parallel_tempering_swap(std::vector<model> &chains){
+        auto n_chains = chains.size();
+        boost::random::uniform_int_distribution<int> chain_picker(0,n_chains-1);
+        for (auto i = 0; i < n_chains * n_chains; i++){ // propose n^2 switches
             int j = chain_picker(gen);
             int k = chain_picker(gen);
             if(j!=k){
@@ -622,7 +639,7 @@ namespace mtobj {
         double sum_log_sigma{0};
         double sum_res{0};
 #ifdef _OMP
-#pragma omp parallel for reduction (+:sum_log_sigma, sum_res)
+        #pragma omp parallel for reduction (+:sum_log_sigma, sum_res)
         for (int i = 0; i < d.size(); i++) {
             auto it = d.begin();
             std::advance(it, i);
@@ -676,13 +693,20 @@ namespace mtobj {
         return sqrt(2 * N);
     }
 
-    void calc_beta(int n_temp, double max_temp, model &m, std::vector<model> &chains) { // make tempering schedule
+    void calc_beta(int n_temp, double max_temp, model &m, std::vector<model> &chains, bool printSchedule=false) { // make tempering schedule
         double length = log10(max_temp);
         double delta = length / static_cast<double>(n_temp - 1);
-        for (int i = 0; i < n_temp; i++) {
-            double temperature = pow(10, static_cast<double>(i) * delta);
+        for (int i = -1; i < n_temp; i++) {
+            double temperature{0};
+            if (i == -1) {
+                temperature = 1.;
+            } else {
+                temperature = pow(10, static_cast<double>(i) * delta);
+            }
             double beta = pow(temperature, -1);
-            std::cout << "t[" << i << "]: " << temperature << "\n";
+            if(printSchedule) {
+                std::cout << "t[" << i << "]: " << temperature << "\n";
+            }
             m.setBeta(beta);
             chains.push_back(m);
         }

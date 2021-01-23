@@ -49,7 +49,7 @@ if (OpenMP_CXX_FOUND)
 	#add_compile_definitions(_OMP=1)
 	#	add_definitions(-D_OMP=1)
 endif()
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer")
 #set(GCC_COVERAGE_COMPILE_FLAGS "-O3")
 
 #add_executable(mt1danisModelParams main.cpp objects.h MTTensor.cpp)
