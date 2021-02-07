@@ -135,9 +135,9 @@ int main(int argn, char* argv[]) {
                                                     prior[paramType::depth].second, "depth");
     auto h_betaStrike = boost::histogram::make_histogram(bs_ax1,bs_ax2);
 
-    auto logl_ax = boost::histogram::axis::regular<>(13,el-3*sl,el+3*sl,"logL");
+    auto logl_ax = boost::histogram::axis::regular<>(101,el-7*sl,el+7*sl,"logL");
     auto hll = boost::histogram::make_histogram(logl_ax);
-    auto ni_ax = boost::histogram::axis::regular<>(16,1,16,"interfaces");
+    auto ni_ax = boost::histogram::axis::regular<>(max_interfaces,1,max_interfaces,"interfaces");
     auto h_n_inter = boost::histogram::make_histogram(ni_ax);
     //================================================================================================================//
 
