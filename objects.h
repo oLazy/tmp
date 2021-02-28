@@ -714,4 +714,14 @@ namespace mtobj {
 
 }
 
+namespace cvt{ // convergence tools
+        /* here I will put the implementation of chi2 test for 2 binned datasets as described in
+        @book{nr1985,
+         title={Numerical Recipes: Example Book: Fortran},
+         author={Press, William H and Vetterling, William T and Teukolsky, Saul A and Flannery, Brian P},
+         year={1985},
+         publisher={Cambridge Univ. P.},
+         pages={471-472}}
+         */
+}
 #endif //MT1DANISMODELPARAMS_OBJECTS_H

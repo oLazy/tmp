@@ -108,6 +108,7 @@ int main(int argn, char* argv[]) {
               "\nLog[L(m0)]: " << mtobj::logL(m, d, cov) <<
               "\nstd(ELogL): " << mtobj::stdLogL(d) <<
               "\nvar(ELogL): " << mtobj::varLogL(d) << "\n";
+
     // create histogram
     //================================================================================================================//
     // SIGMA MEAN
@@ -117,7 +118,9 @@ int main(int argn, char* argv[]) {
     auto sm_ax2 = boost::histogram::axis::regular<>(n_z_bins,
                                                     prior[paramType::depth].first,
                                                     prior[paramType::depth].second, "depth");
-    auto h_sigmaMean = boost::histogram::make_histogram(sm_ax1, sm_ax2);
+    auto h_sigmaMean1 = boost::histogram::make_histogram(sm_ax1, sm_ax2);
+    auto h_sigmaMean2 = boost::histogram::make_histogram(sm_ax1, sm_ax2);
+
     // SIGMA RATIO
     auto sr_ax1 = boost::histogram::axis::regular<>(n_sigma_bins,
                                                     prior[paramType::sigmaRatio].first,
@@ -164,6 +167,7 @@ int main(int argn, char* argv[]) {
             else{
                 target = Target::none;
             }
+
             m = chains[iic];
             move mt;
             double move_n = urn(gen);
@@ -298,8 +302,11 @@ int main(int argn, char* argv[]) {
                     auto sm_hist = m.getNode(z_hist).params[paramType::sigmaMean].getValue();
                     auto sr_hist = m.getNode(z_hist).params[paramType::sigmaRatio].getValue();
                     auto bs_hist = m.getNode(z_hist).params[paramType::beta].getValue();
-
-                    h_sigmaMean(sm_hist, z_hist);
+                    if(target==Target::sample1) {
+                        h_sigmaMean1(sm_hist, z_hist);
+                    }else if(target==Target::sample2){
+                        h_sigmaMean2(sm_hist, z_hist);
+                    }
                     // only add entries to anisotropy images if anisotropy is present
                     if(not std::isnan(sr_hist)){
                         h_sigmaRatio(sr_hist, z_hist);
@@ -361,9 +368,9 @@ int main(int argn, char* argv[]) {
 
     // print histogram data
     std::ofstream histogram_file;
-    histogram_file.open(base_filename+"hist_gp_mean_data.res");
+    histogram_file.open(base_filename+"hist1_gp_mean_data.res");
     int linecount = 0;
-    for(auto &&x : boost::histogram::indexed(h_sigmaMean)){
+    for(auto &&x : boost::histogram::indexed(h_sigmaMean1)){
         auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
         auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
         histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
@@ -371,6 +378,19 @@ int main(int argn, char* argv[]) {
         if(linecount%n_sigma_bins==0) histogram_file << "\n";
     }
     histogram_file.close();
+
+    histogram_file.open(base_filename+"hist2_gp_mean_data.res");
+    linecount = 0;
+    for(auto &&x : boost::histogram::indexed(h_sigmaMean2)){
+        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
+        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
+        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+        linecount++;
+        if(linecount%n_sigma_bins==0) histogram_file << "\n";
+    }
+    histogram_file.close();
+
+
     histogram_file.open(base_filename+"hist_gp_ratio_data.res");
     linecount = 0;
     for(auto &&x : boost::histogram::indexed(h_sigmaRatio)){
