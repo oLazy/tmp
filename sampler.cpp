@@ -369,13 +369,21 @@ int main(int argn, char* argv[]) {
     // print histogram data
     std::ofstream histogram_file;
     histogram_file.open(base_filename+"hist1_gp_mean_data.res");
+//    std::ofstream norm_file;
+//    norm_file.open(base_filename+"norm_hist1_mean_data.res");
     int linecount = 0;
+//    double integral = 0.;
     for(auto &&x : boost::histogram::indexed(h_sigmaMean1)){
         auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
         auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
         histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+//        integral += (x.bin(0).upper() - x.bin(0).lower()) * (*x);
         linecount++;
-        if(linecount%n_sigma_bins==0) histogram_file << "\n";
+        if(linecount%n_sigma_bins==0) {
+            histogram_file << "\n";
+//            norm_file << integral << "\n";
+//            integral = 0.;
+        }
     }
     histogram_file.close();
 
