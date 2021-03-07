@@ -354,7 +354,10 @@ int main(int argn, char* argv[]) {
                 }
                 auto test_res = cvt::chi2twoBins(sample1, sample2);
                 if (std::get<cvt::chi2twoBinsResults::significance>(test_res) < significance){
-
+                    status = SamplerStatus::sampling;
+                    break;
+                }else{
+                    status = SamplerStatus::convergence;
                 }
             }
         }
