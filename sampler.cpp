@@ -57,6 +57,8 @@ int main(int argn, char* argv[]) {
     const int itern_max{vm["n-max-iterations"].as<int>()};
     const int burn_in_n{vm["n-burn-in-iterations"].as<int>()};
     const int n_iter_in_pt{vm["n-iterations-between-pt-swaps"].as<int>()};
+    const int n_iter_between_convergence_checks = n_iter_in_pt; // TODO: update this parameter in the parameter file
+    const double significance = 0.1; // TODO: update this parameter in the parameter file
     std::vector<std::map<std::string , unsigned long>> proposed(n_temp+1), accepted(n_temp+1);
     for (int iic=0; iic<n_temp;iic++) {
         proposed[iic]["perturb"] = 0;
@@ -140,6 +142,14 @@ int main(int argn, char* argv[]) {
 
     auto logl_ax = boost::histogram::axis::regular<>(101,el-7*sl,el+7*sl,"logL");
     auto hll = boost::histogram::make_histogram(logl_ax);
+    // anis probability===============================================================================================
+    auto anisax = boost::histogram::axis::regular<>(n_z_bins,
+                                                    prior[paramType::depth].first,
+                                                    prior[paramType::depth].second, "depth");
+    auto h_anis1 = boost::histogram::make_histogram(anisax);
+    auto h_anis2 = boost::histogram::make_histogram(anisax);
+
+    //================================================================================================================
     auto ni_ax = boost::histogram::axis::regular<>(max_interfaces,1,max_interfaces,"interfaces");
     auto h_n_inter = boost::histogram::make_histogram(ni_ax);
     //================================================================================================================//
@@ -330,9 +340,28 @@ int main(int argn, char* argv[]) {
 
         }
 
+
         /*===============================================================
-         * PARALLEL TEMPERING SECTION
+         * CONVERGENCE TEST SECTION
         =================================================================*/
+        if ((status == SamplerStatus::sampling) && (itern + 1) % n_iter_between_convergence_checks == 0) { // if i am sampling I check the convergence between the samples
+            for (auto i = 0; i<n_z_bins;i++){
+                std::vector<double> sample1(n_sigma_bins,0);
+                std::vector<double> sample2(n_sigma_bins,0);
+                for (auto j = 0; j< n_sigma_bins; j++){
+                    sample1[j] = h_sigmaMean1.at(j,i);
+                    sample2[j] = h_sigmaMean2.at(j,i);
+                }
+                auto test_res = cvt::chi2twoBins(sample1, sample2);
+                if (std::get<cvt::chi2twoBinsResults::significance>(test_res) < significance){
+
+                }
+            }
+        }
+
+            /*===============================================================
+             * PARALLEL TEMPERING SECTION
+            =================================================================*/
         if ((itern + 1) % n_iter_in_pt == 0) { // propose exchange between chains
             parallel_tempering_swap(chains);
 
@@ -354,6 +383,8 @@ int main(int argn, char* argv[]) {
                         status = SamplerStatus::sampling;}
                 }
             }
+
+
         }
         // ================================================================== //
 

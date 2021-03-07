@@ -20,6 +20,7 @@
 #include <boost/histogram.hpp>
 #include <boost/timer/timer.hpp>
 #include <boost/program_options.hpp>
+#include <boost/math/special_functions/gamma.hpp>
 #ifdef _OMP
 #include <omp.h>
 #endif
@@ -723,5 +724,24 @@ namespace cvt{ // convergence tools
          publisher={Cambridge Univ. P.},
          pages={471-472}}
          */
+        enum chi2twoBinsResults{dof=0, significance=1, chi2=2};
+        // to get the intended result:
+        // auto res = std::get<cvt::whatIneed>(chi2twoBins(<whatever>))
+        std::tuple<int, double, double> chi2twoBins(std::vector<double> const & bins1,
+                                                    std::vector<double> const & bins2,
+                                                    int k_constraints=-1){
+            if(bins1.size() != bins2.size()) throw std::runtime_error("histograms have incompatible dimension.");
+            int df = bins1.size() - 1 - k_constraints;
+            double chi2=0.;
+            for (auto i=0; i<bins1.size(); i++){
+                if((bins1[i]==0) and (bins2[i]==0)){
+                    df--; // no data means one less degree of freedom
+                }else{
+                    chi2 += pow((bins1[i] - bins2[i]),2)/(bins1[i] - bins2[i]);
+                }
+            }
+            double prob = boost::math::gamma_q<double, double>(0.5*static_cast<double>(df), 0.5*chi2); // chi2 probability function
+            return std::make_tuple(df,prob,chi2);
+        }
 }
 #endif //MT1DANISMODELPARAMS_OBJECTS_H
