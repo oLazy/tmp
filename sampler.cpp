@@ -360,6 +360,9 @@ int main(int argn, char* argv[]) {
                     status = SamplerStatus::convergence;
                 }
             }
+            if (status == SamplerStatus::convergence){
+                std::cout << "Sample1 and Sample2 are in convergence after " << (itern+1) << "iterations.\n";
+            }
         }
 
             /*===============================================================
@@ -370,7 +373,7 @@ int main(int argn, char* argv[]) {
 
             if(status==SamplerStatus::burn_in) {    // if I am in burn-in, check if burn-in is over
                 for (auto iic = 0; iic < chains.size(); iic++) {
-                    if (isLogLhoodExpected(chains[iic].logL, el, sl, chains[iic].beta)) {
+                    if (isLogLhoodExpected(chains[iic].logL, el, sl, chains[iic].beta, 1)) {
                         status = SamplerStatus::sampling;
                     } else {
                         status = SamplerStatus::burn_in;
