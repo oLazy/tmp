@@ -57,8 +57,10 @@ int main(int argn, char* argv[]) {
     const int itern_max{vm["n-max-iterations"].as<int>()};
     const int burn_in_n{vm["n-burn-in-iterations"].as<int>()};
     const int n_iter_in_pt{vm["n-iterations-between-pt-swaps"].as<int>()};
-    const int n_iter_between_convergence_checks = n_iter_in_pt; // TODO: update this parameter in the parameter file
-    const double significance = 0.1; // TODO: update this parameter in the parameter file
+    const int n_iter_between_convergence_checks{vm["n-iter-between-convergence-checks"].as<int>()};
+    const double significance{vm["significance"].as<double>()};
+    const int subs1 = 2;
+    const int subs2 = 5;
     std::vector<std::map<std::string , unsigned long>> proposed(n_temp+1), accepted(n_temp+1);
     for (int iic=0; iic<n_temp;iic++) {
         proposed[iic]["perturb"] = 0;
@@ -344,27 +346,29 @@ int main(int argn, char* argv[]) {
         /*===============================================================
          * CONVERGENCE TEST SECTION
         =================================================================*/
-        if ((status == SamplerStatus::sampling) && (itern + 1) % n_iter_between_convergence_checks == 0) { // if i am sampling I check the convergence between the samples
-            for (auto i = 0; i<n_z_bins;i++){
-                std::vector<double> sample1(n_sigma_bins,0);
-                std::vector<double> sample2(n_sigma_bins,0);
-                for (auto j = 0; j< n_sigma_bins; j++){
-                    sample1[j] = h_sigmaMean1.at(j,i);
-                    sample2[j] = h_sigmaMean2.at(j,i);
+        if(itern > 10000) { // test after a while
+            if ((status == SamplerStatus::sampling) && (itern + 1) % n_iter_between_convergence_checks ==
+                                                       0) { // if i am sampling I check the convergence between the samples
+                for (auto i = 0; i < n_z_bins; i++) {
+                    std::vector<double> sample1(n_sigma_bins, 0);
+                    std::vector<double> sample2(n_sigma_bins, 0);
+                    for (auto j = 0; j < n_sigma_bins; j++) {
+                        sample1[j] = h_sigmaMean1.at(j, i);
+                        sample2[j] = h_sigmaMean2.at(j, i);
+                    }
+                    auto test_res = cvt::chi2twoBins(sample1, sample2);
+                    if (std::get<cvt::chi2twoBinsResults::significance>(test_res) < significance) {
+                        status = SamplerStatus::sampling;
+                        break;
+                    } else {
+                        status = SamplerStatus::convergence;
+                    }
                 }
-                auto test_res = cvt::chi2twoBins(sample1, sample2);
-                if (std::get<cvt::chi2twoBinsResults::significance>(test_res) < significance){
-                    status = SamplerStatus::sampling;
-                    break;
-                }else{
-                    status = SamplerStatus::convergence;
+                if (status == SamplerStatus::convergence) {
+                    std::cout << "Sample1 and Sample2 are in convergence after " << (itern + 1) << "iterations.\n";
                 }
-            }
-            if (status == SamplerStatus::convergence){
-                std::cout << "Sample1 and Sample2 are in convergence after " << (itern+1) << "iterations.\n";
             }
         }
-
             /*===============================================================
              * PARALLEL TEMPERING SECTION
             =================================================================*/
@@ -539,6 +543,8 @@ boost::program_options::options_description parse_config(boost::program_options:
             ("n-burn-in-iterations", po::value<int>(), "Maximum number of iterations to be used in the burn-in phase. If the flag --Infer-burn-in is used than this value will be ignored.")
             ("random-seed", po::value<int>(), "Seed to initialize random engine.")
             ("n-iterations-between-pt-swaps", po::value<int>(), "Number of iterations between two subsequent parallel tempering swaps.")
+            ("n-iter-between-convergence-checks", po::value<int>(), "Number of iterations between two subsequent tests for convergence.")
+            ("significance", po::value<double>(), "Significance value for the Chi2 test for convergence.")
             // Distribution section
             ("prior-min-sigma-mean",po::value<double>(), "lower bound for log(sigma-mean).")
             ("prior-max-sigma-mean",po::value<double>(), "upper bound for log(sigma-mean).")
@@ -579,7 +585,9 @@ int generate_configuration_file(boost::program_options::variables_map& p_vm){
         os << "n-max-iterations=300000" << "\n";
         os << "n-burn-in-iterations=30000" << "\n";
         os << "random-seed=23" << "\n";
-        os << "n-iterations-between-pt-swaps=1000" << "\n";
+        os << "n-iterations-between-pt-swaps=1009" << "\n";
+        os << "n-iter-between-convergence-checks=1013" << "\n";
+        os << "significance=0.05" << "\n";
         // Distribution section
         os << "prior-min-sigma-mean=-5" << "\n";
         os << "prior-max-sigma-mean=2" << "\n";
