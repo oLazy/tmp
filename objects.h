@@ -609,7 +609,7 @@ namespace mtobj {
                 auto bj = chains[j].beta;
                 auto bk = chains[k].beta;
                 if(urn(gen) <  pow(exp(chains[j].logL - chains[k].logL),(bk-bj))){
-                    std::cerr << "swapping chain no. " << j << " with chain no. " << k <<"\n";
+                    // std::cerr << "swapping chain no. " << j << " with chain no. " << k <<"\n";
                     chains[j].setBeta(bk);
                     chains[k].setBeta(bj);
                     std::swap(chains[j],chains[k]); // i-th temperature remains associated to the i-th chain
@@ -737,11 +737,53 @@ namespace cvt{ // convergence tools
                 if((bins1[i]==0) and (bins2[i]==0)){
                     df--; // no data means one less degree of freedom
                 }else{
-                    chi2 += pow((bins1[i] - bins2[i]),2)/(bins1[i] - bins2[i]);
+                    chi2 += pow((bins1[i] - bins2[i]),2)/(bins1[i] + bins2[i]);
                 }
+            }
+            if (df<1) {
+                std::cout << "HUGE PROBLEM! Check the code\n";
+                df=1;
             }
             double prob = boost::math::gamma_q<double, double>(0.5*static_cast<double>(df), 0.5*chi2); // chi2 probability function
             return std::make_tuple(df,prob,chi2);
         }
 }
+
+namespace gp_utils{
+        void model2disk(mtobj::model m, int paramType, mtobj::Prior const &prior,std::string const & filename){
+            std::vector<double> z, sm, sr, sh, sl, bs;
+            double x1, x2, y1, y2;
+            std::ofstream os;
+            os.open(filename);
+            os << std::setprecision(3);
+            for (auto i=0; i< m.nodes.size(); i++){
+                if (i < m.nodes.size() - 1){
+                    y1 = m.nodes[i].params[mtobj::paramType::depth].getValue();
+                    y2 = m.nodes[i+1].params[mtobj::paramType::depth].getValue();
+
+                    x1 = m.nodes[i].params[paramType].getValue();
+                    x2 = m.nodes[i+1].params[paramType].getValue();
+                } else {
+                    y1 = m.nodes[i].params[mtobj::paramType::depth].getValue();
+                    y2 = 410000; // lithosphere-asthenosphere boundary
+
+                    x1 = m.nodes[i].params[paramType].getValue();
+                    x2 = x1;
+                }
+                // if exists vertical line
+                if (!std::isnan(x1)) {
+                    os << std::setw(15) << x1 << std::setw(15) << y1 << "\n";
+                    os << std::setw(15) << x1 << std::setw(15) << y2 << "\n";
+                    os << "\n";
+                } // if exists, horizontal line
+                if (!std::isnan(x1) && !std::isnan(x2)){
+                    os << std::setw(15) << x1 << std::setw(15) << y2 << "\n";
+                    os << std::setw(15) << x2 << std::setw(15) << y2 << "\n";
+                    os << "\n";
+                }
+
+            }
+            os.close();
+        }
+    }
 #endif //MT1DANISMODELPARAMS_OBJECTS_H

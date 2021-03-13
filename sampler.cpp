@@ -59,8 +59,11 @@ int main(int argn, char* argv[]) {
     const int n_iter_in_pt{vm["n-iterations-between-pt-swaps"].as<int>()};
     const int n_iter_between_convergence_checks{vm["n-iter-between-convergence-checks"].as<int>()};
     const double significance{vm["significance"].as<double>()};
-    const int subs1 = 2;
-    const int subs2 = 5;
+    const int subs1{vm["n1-subsample"].as<int>()};
+    const int subs2{vm["n2-subsample"].as<int>()};
+    int n_sample_collected{0};
+    int n_sample_collected1{0};
+    int n_sample_collected2{0};
     std::vector<std::map<std::string , unsigned long>> proposed(n_temp+1), accepted(n_temp+1);
     for (int iic=0; iic<n_temp;iic++) {
         proposed[iic]["perturb"] = 0;
@@ -92,7 +95,7 @@ int main(int argn, char* argv[]) {
     model m;
     m.nodes.push_back({0,-3});
     m.nodes.push_back({3000,-3});
-
+    model ml_model; // {MAXIMUM LIKELIHOOD MODEL}
     if(!m.isInPrior()){
         std::cerr << "model 0 not in prior\n";
         return 17;
@@ -104,7 +107,7 @@ int main(int argn, char* argv[]) {
 
     m = chains[0]; // t=1
     // log dataset statistics
-
+    ml_model = m;
     auto el = mtobj::expectedLogL(d, cov);
     auto sl = mtobj::stdLogL(d);
     std::cout <<
@@ -122,6 +125,7 @@ int main(int argn, char* argv[]) {
     auto sm_ax2 = boost::histogram::axis::regular<>(n_z_bins,
                                                     prior[paramType::depth].first,
                                                     prior[paramType::depth].second, "depth");
+    auto h_sigmaMean = boost::histogram::make_histogram(sm_ax1, sm_ax2);
     auto h_sigmaMean1 = boost::histogram::make_histogram(sm_ax1, sm_ax2);
     auto h_sigmaMean2 = boost::histogram::make_histogram(sm_ax1, sm_ax2);
 
@@ -133,6 +137,8 @@ int main(int argn, char* argv[]) {
                                                     prior[paramType::depth].first,
                                                     prior[paramType::depth].second, "depth");
     auto h_sigmaRatio = boost::histogram::make_histogram(sr_ax1,sr_ax2);
+    auto h_sigmaRatio1 = boost::histogram::make_histogram(sr_ax1,sr_ax2);
+    auto h_sigmaRatio2 = boost::histogram::make_histogram(sr_ax1,sr_ax2);
     // BETA STRIKE
     auto bs_ax1 = boost::histogram::axis::regular<>(n_sigma_bins,
                                                     prior[paramType::beta].first,
@@ -141,19 +147,24 @@ int main(int argn, char* argv[]) {
                                                     prior[paramType::depth].first,
                                                     prior[paramType::depth].second, "depth");
     auto h_betaStrike = boost::histogram::make_histogram(bs_ax1,bs_ax2);
+    auto h_betaStrike1 = boost::histogram::make_histogram(bs_ax1,bs_ax2);
+    auto h_betaStrike2 = boost::histogram::make_histogram(bs_ax1,bs_ax2);
 
     auto logl_ax = boost::histogram::axis::regular<>(101,el-7*sl,el+7*sl,"logL");
     auto hll = boost::histogram::make_histogram(logl_ax);
+    auto hll1 = boost::histogram::make_histogram(logl_ax);
+    auto hll2 = boost::histogram::make_histogram(logl_ax);
     // anis probability===============================================================================================
     auto anisax = boost::histogram::axis::regular<>(n_z_bins,
                                                     prior[paramType::depth].first,
                                                     prior[paramType::depth].second, "depth");
+    auto h_anis = boost::histogram::make_histogram(anisax);
     auto h_anis1 = boost::histogram::make_histogram(anisax);
     auto h_anis2 = boost::histogram::make_histogram(anisax);
 
     //================================================================================================================
     auto ni_ax = boost::histogram::axis::regular<>(max_interfaces,1,max_interfaces,"interfaces");
-    auto h_n_inter = boost::histogram::make_histogram(ni_ax);
+    auto h_n_inter = boost::histogram::make_histogram(ni_ax); // TODO: update this histogram to save k in spite of #interfaces
     //================================================================================================================//
 
 
@@ -299,45 +310,76 @@ int main(int argn, char* argv[]) {
                 }
                     break;
             }
+            if(m.beta == 1){
+                if(m.logL > ml_model.logL) ml_model = m; // save maximum likelihood model
+            }
+//            // fill the histogram
+//            ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+//            ██░▄▄▄██▄██░██░████░█████▄██░▄▄█▄░▄█░▄▄
+//            ██░▄▄███░▄█░██░████░▄▄░██░▄█▄▄▀██░██▄▄▀
+//            ██░████▄▄▄█▄▄█▄▄███▄██▄█▄▄▄█▄▄▄██▄██▄▄▄
+//            ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 
-            // fill the histogram
+            if(status != SamplerStatus::burn_in) {// only collect samples if the burn-in phase is over
+                if (m.beta == 1) { // only collect samples from chains sampling at temperature t=1
+                    n_sample_collected++;
+                    h_n_inter(m.nodes.size());
+                    hll(m.logL);
+                    if ((target == Target::sample1) && (itern % subs1 == 0)) {
+                        hll1(m.logL);
+                        n_sample_collected1++;
+                    }
+                    if ((target == Target::sample2) && (itern % subs2 == 0)) {
+                        hll2(m.logL);
+                        n_sample_collected2++;
+                    }
+                    for (int i = 0; i < n_z_bins; i++) {
+                        auto dz = (prior[paramType::depth].second - prior[paramType::depth].first) /
+                                  static_cast<double>(n_z_bins);
+                        auto z_hist = static_cast<double>(i) * dz + (dz * 0.5);
+                        auto sm_hist = m.getNode(z_hist).params[paramType::sigmaMean].getValue();
+                        auto sr_hist = m.getNode(z_hist).params[paramType::sigmaRatio].getValue();
+                        auto bs_hist = m.getNode(z_hist).params[paramType::beta].getValue();
+                        // eventually here I can compute sigma high and sigma low to fill further histograms
+                        h_sigmaMean(sm_hist, z_hist);
+                        if(not std::isnan(sr_hist)){
+                            h_sigmaRatio(sr_hist, z_hist);
+                            h_anis(z_hist);
+                        }
+                        if(not std::isnan(bs_hist)){
+                            h_betaStrike(bs_hist, z_hist);
+                        }
+                        if ((target == Target::sample1) && (itern % subs1 == 0)) {
+                            h_sigmaMean1(sm_hist, z_hist);
+                            if(not std::isnan(sr_hist)){
+                                h_sigmaRatio1(sr_hist, z_hist);
+                                h_anis1(z_hist);
+                            }
+                            if(not std::isnan(bs_hist)){
+                                h_betaStrike1(bs_hist, z_hist);
+                            }
+                        }
+                        if ((target == Target::sample2) && (itern % subs2 == 0)) {
+                            h_sigmaMean2(sm_hist, z_hist);
+                            if(not std::isnan(sr_hist)){
+                                h_sigmaRatio2(sr_hist, z_hist);
+                                h_anis2(z_hist);
+                            }
+                            if(not std::isnan(bs_hist)){
+                                h_betaStrike2(bs_hist, z_hist);
+                            }
+                        }
 
-            if ((status != SamplerStatus::burn_in) && (m.beta == 1)) { // only collect samples from t0 chain
-                h_n_inter(m.nodes.size());
-                hll(m.logL);
-                for (int i = 0; i < n_z_bins; i++) {
-                    auto dz = (prior[paramType::depth].second - prior[paramType::depth].first) /
-                              static_cast<double>(n_z_bins);
-                    auto z_hist = static_cast<double>(i) * dz + (dz * 0.5);
-//            auto z_hist = prior[paramType::depth].first;
-                    //            auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
-                    auto sm_hist = m.getNode(z_hist).params[paramType::sigmaMean].getValue();
-                    auto sr_hist = m.getNode(z_hist).params[paramType::sigmaRatio].getValue();
-                    auto bs_hist = m.getNode(z_hist).params[paramType::beta].getValue();
-                    if(target==Target::sample1) {
-                        h_sigmaMean1(sm_hist, z_hist);
-                    }else if(target==Target::sample2){
-                        h_sigmaMean2(sm_hist, z_hist);
                     }
-                    // only add entries to anisotropy images if anisotropy is present
-                    if(not std::isnan(sr_hist)){
-                        h_sigmaRatio(sr_hist, z_hist);
-                    }
-                    if(not std::isnan(bs_hist)){
-                        h_betaStrike(bs_hist, z_hist);
-                    }
-//            std::cout << z_hist << "\t" << sm_hist << "\n";
                 }
             }
 
-//        return 0;
 
             if (((itern + 1) % 1000 == 0) && (iic==0)) {
                 auto t1 = Clock::now();
                 std::cout << "reached iter: " << itern + 1 << "in " <<
                           std::chrono::duration_cast<std::chrono::seconds>(t1 - t0).count() << " seconds. " <<
-                          "log(L) = " << m.logL << "\n";
-
+                          "log(L) = " << m.logL << "best log(L) till now = " << ml_model.logL << "\n";
             }
 
         }
@@ -346,56 +388,58 @@ int main(int argn, char* argv[]) {
         /*===============================================================
          * CONVERGENCE TEST SECTION
         =================================================================*/
-        if(itern > 10000) { // test after a while
-            if ((status == SamplerStatus::sampling) && (itern + 1) % n_iter_between_convergence_checks ==
-                                                       0) { // if i am sampling I check the convergence between the samples
-                for (auto i = 0; i < n_z_bins; i++) {
-                    std::vector<double> sample1(n_sigma_bins, 0);
-                    std::vector<double> sample2(n_sigma_bins, 0);
-                    for (auto j = 0; j < n_sigma_bins; j++) {
-                        sample1[j] = h_sigmaMean1.at(j, i);
-                        sample2[j] = h_sigmaMean2.at(j, i);
-                    }
-                    auto test_res = cvt::chi2twoBins(sample1, sample2);
-                    if (std::get<cvt::chi2twoBinsResults::significance>(test_res) < significance) {
-                        status = SamplerStatus::sampling;
-                        break;
-                    } else {
-                        status = SamplerStatus::convergence;
-                    }
+        if (    (status == SamplerStatus::sampling) &&
+                (((itern + 1) % n_iter_between_convergence_checks) == 0) ) { // if i am sampling I check the convergence between the samples
+            std::cout << "Testing for convergence ...\n";
+            std::cout << "itern: " << itern << "\n";
+            std::cout << "Sample1 size: " << n_sample_collected1 << "\n";
+            std::cout << "Sample2 size: " << n_sample_collected2 << "\n";
+            for (auto i = 0; i < n_z_bins; i++) {
+                std::vector<double> sample1(n_sigma_bins, 0);
+                std::vector<double> sample2(n_sigma_bins, 0);
+                for (auto j = 0; j < n_sigma_bins; j++) {
+                    sample1[j] = h_sigmaMean1.at(j, i);
+                    sample2[j] = h_sigmaMean2.at(j, i);
                 }
-                if (status == SamplerStatus::convergence) {
-                    std::cout << "Sample1 and Sample2 are in convergence after " << (itern + 1) << "iterations.\n";
+                auto test_res = cvt::chi2twoBins(sample1, sample2);
+                if (std::get<cvt::chi2twoBinsResults::significance>(test_res) < significance) {
+                    std::cout << "First offending\nalpha: " << std::get<cvt::chi2twoBinsResults::significance>(test_res) << "\n";
+                    std::cout << "DoF: " << std::get<cvt::chi2twoBinsResults::dof>(test_res) << "\n";
+                    std::cout << "Chi2: " << std::get<cvt::chi2twoBinsResults::chi2>(test_res) << "\n";
+                    status = SamplerStatus::sampling;
+                    break;
+                } else {
+                    status = SamplerStatus::convergence;
                 }
             }
+            if (status == SamplerStatus::convergence) {
+                std::cout << "Sample1 and Sample2 are in convergence after " << (itern + 1) << " iterations.\n";
+            }
         }
-            /*===============================================================
-             * PARALLEL TEMPERING SECTION
-            =================================================================*/
+
+        if(status==SamplerStatus::burn_in) {    // if I am in burn-in, check if burn-in is over
+            for (auto iic = 0; iic < chains.size(); iic++) {
+                if (isLogLhoodExpected(chains[iic].logL, el, sl, chains[iic].beta, 1)) {
+                    status = SamplerStatus::sampling;
+                } else {
+                    status = SamplerStatus::burn_in;
+                    break;
+                }
+            }
+            if(!vm.count("Infer-burn-in")){
+                if(itern<=burn_in_n){
+                    status = SamplerStatus::burn_in;}
+                else{
+                    status = SamplerStatus::sampling;}
+            }
+            if(status==SamplerStatus::sampling) std::cout << "My principle states that burn-in is done after " << itern + 1<< " iterations.\n";
+        }
+
+        /*===============================================================
+         * PARALLEL TEMPERING SECTION
+        =================================================================*/
         if ((itern + 1) % n_iter_in_pt == 0) { // propose exchange between chains
-            parallel_tempering_swap(chains);
-
-            if(status==SamplerStatus::burn_in) {    // if I am in burn-in, check if burn-in is over
-                for (auto iic = 0; iic < chains.size(); iic++) {
-                    if (isLogLhoodExpected(chains[iic].logL, el, sl, chains[iic].beta, 1)) {
-                        status = SamplerStatus::sampling;
-                    } else {
-                        status = SamplerStatus::burn_in;
-                        break;
-                    }
-                }
-                if(status!=SamplerStatus::burn_in) std::cout << "My principle states that burn-in is done after " << itern + 1<< " iterations.\n";
-
-                if(!vm.count("Infer-burn-in")){
-                    if(itern<=burn_in_n){
-                        status = SamplerStatus::burn_in;}
-                    else{
-                        status = SamplerStatus::sampling;}
-                }
-            }
-
-
-        }
+            parallel_tempering_swap(chains);}
         // ================================================================== //
 
     }
@@ -409,22 +453,27 @@ int main(int argn, char* argv[]) {
 
     // print histogram data
     std::ofstream histogram_file;
-    histogram_file.open(base_filename+"hist1_gp_mean_data.res");
-//    std::ofstream norm_file;
-//    norm_file.open(base_filename+"norm_hist1_mean_data.res");
+    histogram_file.open(base_filename+"hist_gp_mean_data.res");
     int linecount = 0;
-//    double integral = 0.;
+    for(auto &&x : boost::histogram::indexed(h_sigmaMean)){
+        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
+        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
+        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+        linecount++;
+        if(linecount%n_sigma_bins==0) {
+            histogram_file << "\n";
+        }
+    }
+    histogram_file.close();
+
+    histogram_file.open(base_filename+"hist1_gp_mean_data.res");
+    linecount = 0;
     for(auto &&x : boost::histogram::indexed(h_sigmaMean1)){
         auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
         auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
         histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
-//        integral += (x.bin(0).upper() - x.bin(0).lower()) * (*x);
         linecount++;
-        if(linecount%n_sigma_bins==0) {
-            histogram_file << "\n";
-//            norm_file << integral << "\n";
-//            integral = 0.;
-        }
+        if(linecount%n_sigma_bins==0) histogram_file << "\n";
     }
     histogram_file.close();
 
@@ -450,10 +499,52 @@ int main(int argn, char* argv[]) {
         if(linecount%n_sigma_bins==0) histogram_file << "\n";
     }
     histogram_file.close();
+    histogram_file.open(base_filename+"hist1_gp_ratio_data.res");
+    linecount = 0;
+    for(auto &&x : boost::histogram::indexed(h_sigmaRatio1)){
+        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
+        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
+        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+        linecount++;
+        if(linecount%n_sigma_bins==0) histogram_file << "\n";
+    }
+    histogram_file.close();
+    histogram_file.open(base_filename+"hist2_gp_ratio_data.res");
+    linecount = 0;
+    for(auto &&x : boost::histogram::indexed(h_sigmaRatio2)){
+        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
+        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
+        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+        linecount++;
+        if(linecount%n_sigma_bins==0) histogram_file << "\n";
+    }
+    histogram_file.close();
 
     histogram_file.open(base_filename+"hist_gp_strike_data.res");
     linecount = 0;
     for(auto &&x : boost::histogram::indexed(h_betaStrike)){
+        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
+        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
+        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+        linecount++;
+        if(linecount%n_sigma_bins==0) histogram_file << "\n";
+    }
+    histogram_file.close();
+
+    histogram_file.open(base_filename+"hist1_gp_strike_data.res");
+    linecount = 0;
+    for(auto &&x : boost::histogram::indexed(h_betaStrike1)){
+        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
+        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
+        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+        linecount++;
+        if(linecount%n_sigma_bins==0) histogram_file << "\n";
+    }
+    histogram_file.close();
+
+    histogram_file.open(base_filename+"hist2_gp_strike_data.res");
+    linecount = 0;
+    for(auto &&x : boost::histogram::indexed(h_betaStrike2)){
         auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
         auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
         histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
@@ -472,6 +563,11 @@ int main(int argn, char* argv[]) {
         hin_file << 0.5*(x.bin(0).lower()+x.bin(0).upper()) << " " << *x << "\n";
     }
     hin_file.close();
+    // OUTPUT ML MODEL
+    gp_utils::model2disk(ml_model, paramType::sigmaMean, prior, "ml_sigma_mean.res");
+    gp_utils::model2disk(ml_model, paramType::sigmaRatio, prior, "ml_sigma_ratio.res");
+    gp_utils::model2disk(ml_model, paramType::beta, prior, "ml_beta_strike.res");
+
     std::cout << "time spent in log(L) subroutine: " << timer.format() << "\n";
 #ifdef _OMP
     std::cout << "program run in parallel with OMP using a team of 4 threads.\n";
@@ -545,6 +641,8 @@ boost::program_options::options_description parse_config(boost::program_options:
             ("n-iterations-between-pt-swaps", po::value<int>(), "Number of iterations between two subsequent parallel tempering swaps.")
             ("n-iter-between-convergence-checks", po::value<int>(), "Number of iterations between two subsequent tests for convergence.")
             ("significance", po::value<double>(), "Significance value for the Chi2 test for convergence.")
+            ("n1-subsample", po::value<int>(), "Sub-sample interval for Sample 1")
+            ("n2-subsample", po::value<int>(), "Sub-sample interval for Sample 2")
             // Distribution section
             ("prior-min-sigma-mean",po::value<double>(), "lower bound for log(sigma-mean).")
             ("prior-max-sigma-mean",po::value<double>(), "upper bound for log(sigma-mean).")
@@ -588,6 +686,8 @@ int generate_configuration_file(boost::program_options::variables_map& p_vm){
         os << "n-iterations-between-pt-swaps=1009" << "\n";
         os << "n-iter-between-convergence-checks=1013" << "\n";
         os << "significance=0.05" << "\n";
+        os << "n1-subsample=2" << "\n";
+        os << "n2-subsample=3" << "\n";
         // Distribution section
         os << "prior-min-sigma-mean=-5" << "\n";
         os << "prior-max-sigma-mean=2" << "\n";

@@ -9,10 +9,13 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIE")
 #											#
 #											#
 find_package(Boost REQUIRED serialization iostreams system filesystem timer program_options)
+find_package(ROOT)
 if (Boost_FOUND)
 	message("BOOST FOUND")
 	message("VERSION: ${Boost_VERSION}")
 endif()
+
+#find_package(ROOT COMPONENTS RooStats)
 add_library(Boost_iostreams STATIC IMPORTED)
 add_library(Boost_serialization STATIC IMPORTED)
 add_library(Boost_system STATIC IMPORTED)
