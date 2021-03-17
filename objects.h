@@ -715,75 +715,122 @@ namespace mtobj {
 
 }
 
-namespace cvt{ // convergence tools
-        /* here I will put the implementation of chi2 test for 2 binned datasets as described in
-        @book{nr1985,
-         title={Numerical Recipes: Example Book: Fortran},
-         author={Press, William H and Vetterling, William T and Teukolsky, Saul A and Flannery, Brian P},
-         year={1985},
-         publisher={Cambridge Univ. P.},
-         pages={471-472}}
-         */
-        enum chi2twoBinsResults{dof=0, significance=1, chi2=2};
-        // to get the intended result:
-        // auto res = std::get<cvt::whatIneed>(chi2twoBins(<whatever>))
-        std::tuple<int, double, double> chi2twoBins(std::vector<double> const & bins1,
-                                                    std::vector<double> const & bins2,
-                                                    int k_constraints=-1){
-            if(bins1.size() != bins2.size()) throw std::runtime_error("histograms have incompatible dimension.");
-            int df = bins1.size() - 1 - k_constraints;
-            double chi2=0.;
-            for (auto i=0; i<bins1.size(); i++){
-                if((bins1[i]==0) and (bins2[i]==0)){
-                    df--; // no data means one less degree of freedom
-                }else{
-                    chi2 += pow((bins1[i] - bins2[i]),2)/(bins1[i] + bins2[i]);
-                }
+namespace cvt { // convergence tools
+    /* here I will put the implementation of chi2 test for 2 binned datasets as described in
+    @book{nr1985,
+     title={Numerical Recipes: Example Book: Fortran},
+     author={Press, William H and Vetterling, William T and Teukolsky, Saul A and Flannery, Brian P},
+     year={1985},
+     publisher={Cambridge Univ. P.},
+     pages={471-472}}
+     */
+    enum chi2twoBinsResults {
+        dof = 0, significance = 1, chi2 = 2
+    };
+
+    // to get the intended result:
+    // auto res = std::get<cvt::whatIneed>(chi2twoBins(<whatever>))
+    std::tuple<int, double, double> chi2twoBins(std::vector<double> const &bins1,
+                                                std::vector<double> const &bins2,
+                                                int k_constraints = -1) {
+        if (bins1.size() != bins2.size()) throw std::runtime_error("histograms have incompatible dimension.");
+        int df = bins1.size() - 1 - k_constraints;
+        double chi2 = 0.;
+        for (auto i = 0; i < bins1.size(); i++) {
+            if ((bins1[i] == 0) and (bins2[i] == 0)) {
+                df--; // no data means one less degree of freedom
+            } else {
+                chi2 += pow((bins1[i] - bins2[i]), 2) / (bins1[i] + bins2[i]);
             }
-            if (df<1) {
-                std::cout << "HUGE PROBLEM! Check the code\n";
-                df=1;
-            }
-            double prob = boost::math::gamma_q<double, double>(0.5*static_cast<double>(df), 0.5*chi2); // chi2 probability function
-            return std::make_tuple(df,prob,chi2);
         }
-}
-
-namespace gp_utils{
-        void model2disk(mtobj::model m, int paramType, mtobj::Prior const &prior,std::string const & filename){
-            std::vector<double> z, sm, sr, sh, sl, bs;
-            double x1, x2, y1, y2;
-            std::ofstream os;
-            os.open(filename);
-            os << std::setprecision(3);
-            for (auto i=0; i< m.nodes.size(); i++){
-                if (i < m.nodes.size() - 1){
-                    y1 = m.nodes[i].params[mtobj::paramType::depth].getValue();
-                    y2 = m.nodes[i+1].params[mtobj::paramType::depth].getValue();
-
-                    x1 = m.nodes[i].params[paramType].getValue();
-                    x2 = m.nodes[i+1].params[paramType].getValue();
-                } else {
-                    y1 = m.nodes[i].params[mtobj::paramType::depth].getValue();
-                    y2 = 410000; // lithosphere-asthenosphere boundary
-
-                    x1 = m.nodes[i].params[paramType].getValue();
-                    x2 = x1;
-                }
-                // if exists vertical line
-                if (!std::isnan(x1)) {
-                    os << std::setw(15) << x1 << std::setw(15) << y1 << "\n";
-                    os << std::setw(15) << x1 << std::setw(15) << y2 << "\n";
-                    os << "\n";
-                } // if exists, horizontal line
-                if (!std::isnan(x1) && !std::isnan(x2)){
-                    os << std::setw(15) << x1 << std::setw(15) << y2 << "\n";
-                    os << std::setw(15) << x2 << std::setw(15) << y2 << "\n";
-                    os << "\n";
-                }
-
-            }
-            os.close();
+        if (df < 1) {
+            std::cout << "HUGE PROBLEM! Check the code\n";
+            df = 1;
         }
+        double prob = boost::math::gamma_q<double, double>(0.5 * static_cast<double>(df),
+                                                           0.5 * chi2); // chi2 probability function
+        return std::make_tuple(df, prob, chi2);
     }
+
+    std::vector<double> empirical_cdf(std::vector<double> const &v) {
+        auto V = std::accumulate(v.begin(), v.end(), 0.);
+        std::vector<double> r{v[0] / V};
+        for (auto i = 1; i < v.size(); i++) {
+            r.push_back(r[i - 1] + v[i] / V);
+        }
+        return r;
+    }
+
+    double ks2sample_stat(std::vector<double> const &v1, std::vector<double> const &v2) {
+        if (v1.size() != v2.size())
+            throw std::logic_error("ks statistics is implemented only for histograms with the same number of bins");
+        // create empirical cdf for v1 and v2
+        auto cdf1 = empirical_cdf(v1);
+        auto cdf2 = empirical_cdf(v2);
+        double d{0};
+        for (auto i = 0; i < v1.size(); i++) {
+            double dis = std::abs(cdf1[i] - cdf2[i]);
+            if (dis >= d) d = dis; //take the maximum distance
+        }
+        return d;
+    }
+
+    const std::map<double, double> c_alpha{{0.10, 1.22},
+                                           {0.05, 1.36},
+                                           {0.025, 1.48},
+                                           {0.01, 1.63},
+                                           {0.005, 1.73},
+                                           {0.001, 1.95}};
+
+    bool ks2test(std::vector<double> const &v1, std::vector<double> const &v2, int m, int n, double sig) {
+        if(m<12 or n<12){
+            throw std::invalid_argument("Both m and n ma=ust be > 12.");
+        }
+        if (c_alpha.find(sig) == c_alpha.end()) { // value not in table
+            throw std::invalid_argument(
+                    "c_alpha table does not contains level of significance alpha = " + std::to_string(sig));
+        }
+        auto D_a = c_alpha.at(sig) * std::sqrt((m + n) / (n * m));
+        auto D = ks2sample_stat(v1, v2);
+        if (D > D_a) return false;
+        return true;
+    }
+}
+namespace gp_utils{
+    void model2disk(mtobj::model m, int paramType, mtobj::Prior const &prior,std::string const & filename){
+        std::vector<double> z, sm, sr, sh, sl, bs;
+        double x1, x2, y1, y2;
+        std::ofstream os;
+        os.open(filename);
+        os << std::setprecision(3);
+        for (auto i=0; i< m.nodes.size(); i++){
+            if (i < m.nodes.size() - 1){
+                y1 = m.nodes[i].params[mtobj::paramType::depth].getValue();
+                y2 = m.nodes[i+1].params[mtobj::paramType::depth].getValue();
+
+                x1 = m.nodes[i].params[paramType].getValue();
+                x2 = m.nodes[i+1].params[paramType].getValue();
+            } else {
+                y1 = m.nodes[i].params[mtobj::paramType::depth].getValue();
+                y2 = 410000; // lithosphere-asthenosphere boundary
+
+                x1 = m.nodes[i].params[paramType].getValue();
+                x2 = x1;
+            }
+            // if exists vertical line
+            if (!std::isnan(x1)) {
+                os << std::setw(15) << x1 << std::setw(15) << y1 << "\n";
+                os << std::setw(15) << x1 << std::setw(15) << y2 << "\n";
+                os << "\n";
+            } // if exists, horizontal line
+            if (!std::isnan(x1) && !std::isnan(x2)){
+                os << std::setw(15) << x1 << std::setw(15) << y2 << "\n";
+                os << std::setw(15) << x2 << std::setw(15) << y2 << "\n";
+                os << "\n";
+            }
+
+        }
+        os.close();
+    }
+}
 #endif //MT1DANISMODELPARAMS_OBJECTS_H
