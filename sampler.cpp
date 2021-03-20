@@ -6,7 +6,9 @@
 #include <chrono>
 #include <boost/timer/timer.hpp>
 #include <boost/tuple/tuple.hpp>
+#include <boost/circular_buffer.hpp>
 #include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
 #include <iomanip>
 #include <boost/program_options.hpp>
 #include "global.h"
@@ -76,6 +78,10 @@ int main(int argn, char* argv[]) {
         accepted[iic]["death"] = 0;
         accepted[iic]["iso_switch"] = 0;
     }
+    Buffer outbuffer{static_cast<unsigned long>(n_iter_in_pt)};
+    unsigned long iBuffer{0};
+    std::ofstream sample_output(base_filename+"_sample_out.bin");
+    boost::archive::binary_oarchive sample_oa(sample_output);
 
     initPrior({0.,max_depth},
               {vm["prior-min-sigma-mean"].as<double>(),vm["prior-max-sigma-mean"].as<double>()},
@@ -324,6 +330,7 @@ int main(int argn, char* argv[]) {
             if(status != SamplerStatus::burn_in) {// only collect samples if the burn-in phase is over
                 if (m.beta == 1) { // only collect samples from chains sampling at temperature t=1
                     n_sample_collected++;
+                    iBuffer++;
                     h_n_inter(m.nodes.size());
                     hll(m.logL);
                     if ((target == Target::sample1) && (itern % subs1 == 0)) {
@@ -333,6 +340,11 @@ int main(int argn, char* argv[]) {
                     if ((target == Target::sample2) && (itern % subs2 == 0)) {
                         hll2(m.logL);
                         n_sample_collected2++;
+                    }
+                    outbuffer.push_back(m);
+                    if(iBuffer==outbuffer.capacity()){// buffer is full
+                        for(auto outm=outbuffer.begin();outm!=outbuffer.end();outm++)
+                        sample_oa << *outm;
                     }
                     for (int i = 0; i < n_z_bins; i++) {
                         auto dz = (prior[paramType::depth].second - prior[paramType::depth].first) /
@@ -450,118 +462,120 @@ int main(int argn, char* argv[]) {
               "\nstd(ELogL): " << mtobj::stdLogL(d) <<
               "\nvar(ELogL): " << mtobj::varLogL(d) << "\n";
 
-    // print histogram data
-    std::ofstream histogram_file;
-    histogram_file.open(base_filename+"hist_gp_mean_data.res");
-    int linecount = 0;
-    for(auto &&x : boost::histogram::indexed(h_sigmaMean)){
-        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
-        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
-        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
-        linecount++;
-        if(linecount%n_sigma_bins==0) {
-            histogram_file << "\n";
+    if(status!=SamplerStatus::burn_in) {
+        // print histogram data if burn-in is over
+        std::ofstream histogram_file;
+        histogram_file.open(base_filename + "hist_gp_mean_data.res");
+        int linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_sigmaMean)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) {
+                histogram_file << "\n";
+            }
         }
-    }
-    histogram_file.close();
+        histogram_file.close();
 
-    histogram_file.open(base_filename+"hist1_gp_mean_data.res");
-    linecount = 0;
-    for(auto &&x : boost::histogram::indexed(h_sigmaMean1)){
-        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
-        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
-        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
-        linecount++;
-        if(linecount%n_sigma_bins==0) histogram_file << "\n";
-    }
-    histogram_file.close();
+        histogram_file.open(base_filename + "hist1_gp_mean_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_sigmaMean1)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
 
-    histogram_file.open(base_filename+"hist2_gp_mean_data.res");
-    linecount = 0;
-    for(auto &&x : boost::histogram::indexed(h_sigmaMean2)){
-        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
-        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
-        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
-        linecount++;
-        if(linecount%n_sigma_bins==0) histogram_file << "\n";
-    }
-    histogram_file.close();
+        histogram_file.open(base_filename + "hist2_gp_mean_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_sigmaMean2)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
 
 
-    histogram_file.open(base_filename+"hist_gp_ratio_data.res");
-    linecount = 0;
-    for(auto &&x : boost::histogram::indexed(h_sigmaRatio)){
-        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
-        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
-        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
-        linecount++;
-        if(linecount%n_sigma_bins==0) histogram_file << "\n";
-    }
-    histogram_file.close();
-    histogram_file.open(base_filename+"hist1_gp_ratio_data.res");
-    linecount = 0;
-    for(auto &&x : boost::histogram::indexed(h_sigmaRatio1)){
-        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
-        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
-        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
-        linecount++;
-        if(linecount%n_sigma_bins==0) histogram_file << "\n";
-    }
-    histogram_file.close();
-    histogram_file.open(base_filename+"hist2_gp_ratio_data.res");
-    linecount = 0;
-    for(auto &&x : boost::histogram::indexed(h_sigmaRatio2)){
-        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
-        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
-        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
-        linecount++;
-        if(linecount%n_sigma_bins==0) histogram_file << "\n";
-    }
-    histogram_file.close();
+        histogram_file.open(base_filename + "hist_gp_ratio_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_sigmaRatio)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
+        histogram_file.open(base_filename + "hist1_gp_ratio_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_sigmaRatio1)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
+        histogram_file.open(base_filename + "hist2_gp_ratio_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_sigmaRatio2)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
 
-    histogram_file.open(base_filename+"hist_gp_strike_data.res");
-    linecount = 0;
-    for(auto &&x : boost::histogram::indexed(h_betaStrike)){
-        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
-        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
-        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
-        linecount++;
-        if(linecount%n_sigma_bins==0) histogram_file << "\n";
-    }
-    histogram_file.close();
+        histogram_file.open(base_filename + "hist_gp_strike_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_betaStrike)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
 
-    histogram_file.open(base_filename+"hist1_gp_strike_data.res");
-    linecount = 0;
-    for(auto &&x : boost::histogram::indexed(h_betaStrike1)){
-        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
-        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
-        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
-        linecount++;
-        if(linecount%n_sigma_bins==0) histogram_file << "\n";
-    }
-    histogram_file.close();
+        histogram_file.open(base_filename + "hist1_gp_strike_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_betaStrike1)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
 
-    histogram_file.open(base_filename+"hist2_gp_strike_data.res");
-    linecount = 0;
-    for(auto &&x : boost::histogram::indexed(h_betaStrike2)){
-        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
-        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
-        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
-        linecount++;
-        if(linecount%n_sigma_bins==0) histogram_file << "\n";
-    }
-    histogram_file.close();
+        histogram_file.open(base_filename + "hist2_gp_strike_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_betaStrike2)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
 
-    std::ofstream hll_file(base_filename+"logL.res");
-    std::ofstream hin_file(base_filename+"hInter.res");
-    for (auto &&x : boost::histogram::indexed(hll)){
-        hll_file << 0.5*(x.bin(0).lower()+x.bin(0).upper()) << " " << *x << "\n";
+        std::ofstream hll_file(base_filename + "logL.res");
+        std::ofstream hin_file(base_filename + "hInter.res");
+        for (auto &&x : boost::histogram::indexed(hll)) {
+            hll_file << 0.5 * (x.bin(0).lower() + x.bin(0).upper()) << " " << *x << "\n";
+        }
+        hll_file.close();
+        for (auto &&x : boost::histogram::indexed(h_n_inter)) {
+            hin_file << 0.5 * (x.bin(0).lower() + x.bin(0).upper()) << " " << *x << "\n";
+        }
+        hin_file.close();
     }
-    hll_file.close();
-    for (auto &&x : boost::histogram::indexed(h_n_inter)){
-        hin_file << 0.5*(x.bin(0).lower()+x.bin(0).upper()) << " " << *x << "\n";
-    }
-    hin_file.close();
     // OUTPUT ML MODEL
     gp_utils::model2disk(ml_model, paramType::sigmaMean, prior, "ml_sigma_mean.res");
     gp_utils::model2disk(ml_model, paramType::sigmaRatio, prior, "ml_sigma_ratio.res");
@@ -587,6 +601,8 @@ int main(int argn, char* argv[]) {
         faccst << "\n\n";
     }
     faccst.close();
+    sample_output.close();
+
     return 0;
 }
 

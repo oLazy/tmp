@@ -21,6 +21,7 @@
 #include <boost/timer/timer.hpp>
 #include <boost/program_options.hpp>
 #include <boost/math/special_functions/gamma.hpp>
+#include <boost/circular_buffer.hpp>
 #ifdef _OMP
 #include <omp.h>
 #endif
@@ -730,7 +731,7 @@ namespace mtobj {
             chains.push_back(m);
         }
     }
-
+    typedef boost::circular_buffer<model> Buffer;
 }
 
 namespace cvt { // convergence tools

@@ -5,6 +5,8 @@ input_folder/*.bin
 input_folder/*.dat
 latex/
 html/
+latex/*
+html/*.*
 doxygen_config
 *.cfg
 .DS_Store
