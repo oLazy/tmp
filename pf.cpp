@@ -2,6 +2,7 @@
 // Created by eric on 20/03/2021.
 //
 #include "objects.h"
+#include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/program_options.hpp>
 #include "global.h"
@@ -10,9 +11,86 @@ boost::program_options::options_description parse_cmdline(int argc, char *argv[]
 boost::program_options::options_description parse_config(boost::program_options::variables_map& p_vm);
 
 int main(int argn, char* argv[]) {
+    // parse command line and config file
+    auto desc = parse_cmdline(argn, argv, vm);
+    auto config_desc = parse_config(vm);
+    if(vm.count("help")){
+        std::cout << desc <<std::endl;
+        std::cout << config_desc << std::endl;
+        return 0;
+    }
+
+// load inverted dataset
+    std::string base_filename{vm["base-filename"].as<std::string>().c_str()};
+    mtobj::Cov0 cov;
+    mtobj::Dataset d;
+    std::ifstream is(base_filename+"_rep.dat");
+    boost::archive::text_iarchive ia(is);
+    ia >> d >> cov;
+    is.close();
+//    for (auto D : d){
+//        std::cout << "T= " << D.first << ": Z= " << D.second << std::endl;
+//    }
+// create periods vector
+    std::vector<double> periods;
+    for (auto D : d){
+        periods.push_back(D.first);
+    }
+
+    // create histograms
+    auto ax_h = boost::histogram::axis::regular<>(periods.size(),
+                                                    periods[0],
+                                                    periods[periods.size()-1], "T");
+    auto ax_v = boost::histogram::axis::regular<>(101,
+                                                    -1.,
+                                                    1., "component/absolute");
+    auto zhist = boost::histogram::make_histogram(ax_h, ax_v);
+
+    //load the first 1000 samples
+    std::ifstream sample_output(base_filename+"_sample_out.bin");
+    boost::archive::binary_iarchive sample_ia(sample_output);
+    mtobj::model m;
+    std::vector<mtobj::model> s;
+    for (auto i=0; i<1000; i++) {
+        sample_ia >> m;
+        m.calc_params();
+        s.push_back(m);
+    }
+    sample_output.close();
+    for (auto i=0; i<1000; i++) {
+//        fill the histogram
+        for (auto T : periods) {
+            auto z = s[i](T);
+            zhist(T,std::real(z.xy)/std::abs(z.xy));
+        }
+    }
+
+
+//
+//
+//    std::cout << "=========================================================================\n";
+//    std::cout << s[0]<<std::endl;
+//    std::cout << "=========================================================================\n";
+//    std::cout << s[1]<<std::endl;
+//    std::cout << "=========================================================================\n";
 
 return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* parsing program options and config */
@@ -69,8 +147,7 @@ boost::program_options::options_description parse_config(boost::program_options:
         // initial model
 
             ;
-    auto isGeneratingConfig = p_vm["init-config"].as<bool>();
-    if(not isGeneratingConfig and not p_vm.count("help")){
+    if(not p_vm.count("help")){
         po::store(po::parse_config_file(p_vm["config"].as<std::string>().c_str(), config),p_vm);
     }
     po::notify(p_vm);
