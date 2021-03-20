@@ -36,7 +36,7 @@ int main(int argc, char* argv[]){
         os << "min_T="<<-2<<"\n";
         os << "max_T="<<3<<"\n";
         os << "n_T="<<81<<"\n";
-        os << "model-filename=cg_model_1.bin";
+        os << "model-filename=test.bin";
         return 2;
     }
 
@@ -209,7 +209,7 @@ boost::program_options::options_description parse_config(boost::program_options:
             ("max_T", po::value<double>(), "magnitude of maximum period for the simulated survey. If the "
                                             "--IS is specified, the value must be inserted in seconds.")
             ("n_T", po::value<int>()->default_value(81), "Number of periods for the simulated survey, equally log-spaced between min_T and max_T.")
-            ("model-filename", po::value<std::string>()->default_value("cg_model_1.bin"), "Model file path.");
+            ("model-filename", po::value<std::string>()->default_value("test.bin"), "Model file path.");
     auto isGeneratingConfig = p_vm["init_config"].as<bool>();
     if(not isGeneratingConfig and not p_vm.count("help")){
         po::store(po::parse_config_file(p_vm["config"].as<std::string>().c_str(), config),p_vm);

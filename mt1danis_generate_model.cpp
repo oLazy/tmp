@@ -120,7 +120,7 @@ int main(int argn, char* argv[]){
 
     // sigma_mean output
     std::ofstream txt_file;
-    txt_file.open("gnuplot_test.txt");
+    txt_file.open("gnuplot_sigma_mean_plot.txt");
     for (auto i=0; i<x.size();i++){
         txt_file << std::setprecision(3) << std::setw(15) << x[i] << std::setw(15) << " " << std::setw(15)  << y[i];
         if (i < x.size() -1){

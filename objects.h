@@ -782,6 +782,14 @@ namespace cvt { // convergence tools
                                            {0.005, 1.73},
                                            {0.001, 1.95}};
 
+    ///
+    ///implements ks test for the compatibility of two histograms
+/// \param v1 hist entries for sample 1
+/// \param v2 hist entries for sample 2
+/// \param m size of sample 1
+/// \param n size of sample 2
+/// \param sig alpha. Level of significance is 1-alpha
+/// \return true if I cannot disproof the H0 hypotesis that v1 and v2 are from the same distribution. false otherwise
     bool ks2test(std::vector<double> const &v1, std::vector<double> const &v2, int m, int n, double sig) {
         if(m<12 or n<12){
             throw std::invalid_argument("Both m and n ma=ust be > 12.");
@@ -790,9 +798,13 @@ namespace cvt { // convergence tools
             throw std::invalid_argument(
                     "c_alpha table does not contains level of significance alpha = " + std::to_string(sig));
         }
-        auto D_a = c_alpha.at(sig) * std::sqrt((m + n) / (n * m));
+        auto D_a = c_alpha.at(sig) * std::sqrt(static_cast<double>(m + n) / static_cast<double>(n * m));
         auto D = ks2sample_stat(v1, v2);
-        if (D > D_a) return false;
+
+        if (D > D_a) {
+//            std::cerr << "m: " << m << "; n: " << n << "; c: " << c_alpha.at(sig) << "; D: " << D << "; D_a:" << D_a << "\n";
+            return false;
+        }
         return true;
     }
 }

@@ -59,6 +59,7 @@ int main(int argn, char* argv[]) {
     const int n_iter_in_pt{vm["n-iterations-between-pt-swaps"].as<int>()};
     const int n_iter_between_convergence_checks{vm["n-iter-between-convergence-checks"].as<int>()};
     const double significance{vm["significance"].as<double>()};
+    const double min_convergence_ratio{vm["min-convergence-ratio"].as<double>()};
     const int subs1{vm["n1-subsample"].as<int>()};
     const int subs2{vm["n2-subsample"].as<int>()};
     int n_sample_collected{0};
@@ -178,7 +179,7 @@ int main(int argn, char* argv[]) {
     auto il = dl + std::get<3>(receipt);
     std::cout << "iso-switch probability limit shall be 1. In this run is " << il << "\n";
 
-    for (auto itern=0; itern<itern_max;itern++) {
+    for (auto itern=1; itern!=itern_max;itern++) {
         Target target = Target::none;
         for (int iic = 0; iic < chains.size(); iic++) {
             if(iic==0) {
@@ -375,25 +376,27 @@ int main(int argn, char* argv[]) {
             }
 
 
-            if (((itern + 1) % 1000 == 0) && (iic==0)) {
+            if ((itern % 1000 == 0) && (iic==0)) {
                 auto t1 = Clock::now();
-                std::cout << "reached iter: " << itern + 1 << "in " <<
+                std::cout << "reached iter: " << itern << " in " <<
                           std::chrono::duration_cast<std::chrono::seconds>(t1 - t0).count() << " seconds. " <<
-                          "log(L) = " << m.logL << "best log(L) till now = " << ml_model.logL << "\n";
+                          "log(L) = " << m.logL << ". Best log(L) till now = " << ml_model.logL << "\n";
             }
 
-        }
+        } // done  one iter for all chains
 
 
         /*===============================================================
          * CONVERGENCE TEST SECTION
         =================================================================*/
         if (    (status == SamplerStatus::sampling) &&
-                (((itern + 1) % n_iter_between_convergence_checks) == 0) ) { // if i am sampling I check the convergence between the samples
+                ((itern % n_iter_between_convergence_checks) == 0) ) { // if i am sampling I check the convergence between the samples
             std::cout << "Testing for convergence ...\n";
             std::cout << "itern: " << itern << "\n";
             std::cout << "Sample1 size: " << n_sample_collected1 << "\n";
             std::cout << "Sample2 size: " << n_sample_collected2 << "\n";
+            auto test_pass_ratio{0.};
+            auto w=1./static_cast<double>(n_z_bins);
             for (auto i = 0; i < n_z_bins; i++) {
                 std::vector<double> sample1(n_sigma_bins, 0);
                 std::vector<double> sample2(n_sigma_bins, 0);
@@ -401,19 +404,16 @@ int main(int argn, char* argv[]) {
                     sample1[j] = h_sigmaMean1.at(j, i);
                     sample2[j] = h_sigmaMean2.at(j, i);
                 }
-                auto test_res = cvt::chi2twoBins(sample1, sample2);
-                if (std::get<cvt::chi2twoBinsResults::significance>(test_res) < significance) {
-                    std::cout << "First offending\nalpha: " << std::get<cvt::chi2twoBinsResults::significance>(test_res) << "\n";
-                    std::cout << "DoF: " << std::get<cvt::chi2twoBinsResults::dof>(test_res) << "\n";
-                    std::cout << "Chi2: " << std::get<cvt::chi2twoBinsResults::chi2>(test_res) << "\n";
-                    status = SamplerStatus::sampling;
-                    break;
-                } else {
+                if(cvt::ks2test(sample1, sample2, n_sample_collected1, n_sample_collected2, significance)) test_pass_ratio+=w;
+                if(test_pass_ratio>=(min_convergence_ratio)){
                     status = SamplerStatus::convergence;
+                    break; // don't need other proofs, the two samples are in convergence
                 }
             }
+            std::cout << "KS test pass ratio: " << test_pass_ratio <<"\n";
             if (status == SamplerStatus::convergence) {
-                std::cout << "Sample1 and Sample2 are in convergence after " << (itern + 1) << " iterations.\n";
+                std::cout << "Sample1 and Sample2 are in convergence after " << itern  << " iterations.\n";
+                if(vm.count("Converge"))break;
             }
         }
 
@@ -432,16 +432,15 @@ int main(int argn, char* argv[]) {
                 else{
                     status = SamplerStatus::sampling;}
             }
-            if(status==SamplerStatus::sampling) std::cout << "My principle states that burn-in is done after " << itern + 1<< " iterations.\n";
+            if(status==SamplerStatus::sampling) std::cout << "My principle states that burn-in is done after " << itern << " iterations.\n";
         }
 
         /*===============================================================
          * PARALLEL TEMPERING SECTION
         =================================================================*/
-        if ((itern + 1) % n_iter_in_pt == 0) { // propose exchange between chains
+        if (itern % n_iter_in_pt == 0) { // propose exchange between chains
             parallel_tempering_swap(chains);}
         // ================================================================== //
-
     }
 // print dataset statistics
     std::cout << "\n===================================\n" << m << "\n===================================\n";
@@ -640,9 +639,10 @@ boost::program_options::options_description parse_config(boost::program_options:
             ("random-seed", po::value<int>(), "Seed to initialize random engine.")
             ("n-iterations-between-pt-swaps", po::value<int>(), "Number of iterations between two subsequent parallel tempering swaps.")
             ("n-iter-between-convergence-checks", po::value<int>(), "Number of iterations between two subsequent tests for convergence.")
-            ("significance", po::value<double>(), "Significance value for the Chi2 test for convergence.")
+            ("significance", po::value<double>(), "Significance value for the convergence test.")
             ("n1-subsample", po::value<int>(), "Sub-sample interval for Sample 1")
             ("n2-subsample", po::value<int>(), "Sub-sample interval for Sample 2")
+            ("min-convergence-ratio", po::value<double>()->default_value(0.90), "Ratio of histograms that must results compatible according to the ks statistics to ensure convergence.\nUnused if the code runs without the -v flag." )
             // Distribution section
             ("prior-min-sigma-mean",po::value<double>(), "lower bound for log(sigma-mean).")
             ("prior-max-sigma-mean",po::value<double>(), "upper bound for log(sigma-mean).")
@@ -677,17 +677,18 @@ int generate_configuration_file(boost::program_options::variables_map& p_vm){
         os << "n-interface-max=8" << "\n";
         os << "n-sigma-bins=512" << "\n";
         os << "n-z-bins=1024" << "\n";
-        os << "n-temperatures=7" << "\n";
+        os << "n-temperatures=15" << "\n";
         os << "max-temperature=1000." << "\n";
         os << "max-depth=10000." << "\n";
         os << "n-max-iterations=300000" << "\n";
         os << "n-burn-in-iterations=30000" << "\n";
         os << "random-seed=23" << "\n";
-        os << "n-iterations-between-pt-swaps=1009" << "\n";
-        os << "n-iter-between-convergence-checks=1013" << "\n";
+        os << "n-iterations-between-pt-swaps=100" << "\n";
+        os << "n-iter-between-convergence-checks=1000" << "\n";
         os << "significance=0.05" << "\n";
         os << "n1-subsample=2" << "\n";
         os << "n2-subsample=3" << "\n";
+        os << "min-convergence-ratio=0.90" << "\n";
         // Distribution section
         os << "prior-min-sigma-mean=-5" << "\n";
         os << "prior-max-sigma-mean=2" << "\n";
@@ -702,7 +703,7 @@ int generate_configuration_file(boost::program_options::variables_map& p_vm){
         os << "death=0.1" << "\n";
         os << "iso-switch=0.1" << "\n";
         // File names
-        os << "base-filename=cg_model_1\n";
+        os << "base-filename=test\n";
         return 0;}
     catch (...){
         return -1;
