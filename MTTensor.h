@@ -12,7 +12,9 @@
 #include <array>
 
 typedef std::complex<double> MTComplex;
+
 struct MTTensor {
+
     MTComplex xx, xy, yx, yy;
 
 //    MTTensor(){xx=nan("");xy=nan("");yx=nan("");yy=nan("");};

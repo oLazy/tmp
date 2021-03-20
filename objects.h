@@ -34,6 +34,7 @@ extern boost::random::mt19937 gen;
 extern boost::random::normal_distribution<double> rn;
 extern boost::random::uniform_real_distribution<double> urn;
 
+///@file
 namespace mtobj {
     /*include code from the old project */
     //TODO adjust the calc_params method to ensure physical parameter units are correct
@@ -48,12 +49,18 @@ namespace mtobj {
     double static constexpr pi{M_PI};
 
     class ModelOutOfPrior : public std::exception {
+        ///
+        /// \return exception. Used to verify input data.
         virtual const char *what() const throw() {
             return "Model out prior";
         }
     };
-
-
+/**
+ * @brief rotate complex impedance tensor around the z axis
+ * @param za input impedance tensor
+ * @param beta_rad beta_rad rotation angle (in rads)
+ * @return za in the new coordinate frame
+ */
     MTTensor rot_z(MTTensor const &za, double beta_rad) {
         if (std::isnan(beta_rad)) beta_rad = 0.;
         MTTensor result;
@@ -90,7 +97,11 @@ namespace mtobj {
                                          {3, "beta"}};
     typedef std::map<int, std::pair<double, double> > Prior;
     std::map<int, std::pair<double, double> > prior;
-
+/// Initialize MT uniform prior
+/// \param depth limits for depth
+/// \param mean limits for \f$\bar{\sigma}\f$ (log space)
+/// \param ratio limits for \f$\frac{\sigma_{low}}{\sigma_{high}}\f$ (log space)
+/// \param beta limits for \f$\beta_{s}\f$ in deg
     void initPrior(limits depth, limits mean, limits ratio, limits beta) {
         prior[paramType::depth] = depth;
         prior[paramType::sigmaMean] = mean;
@@ -99,6 +110,13 @@ namespace mtobj {
     }
 
     std::map<int, double> proposal; //stores the sd for perturbations
+    /// Initilize the scales (std) for gaussian perturbation of parameters. It is computed as
+    /// \f$ \frac{m_{MAX} - m{min}}{scale}\f$
+    /// \param depth prior limits
+    /// \param mean prior limits
+    /// \param ratio prior limits
+    /// \param beta prior limits
+    /// \param scale double
     void initProposal(limits depth, limits mean, limits ratio, limits beta, double scale) {
         proposal[paramType::depth] = (depth.second - depth.first) / scale;
         proposal[paramType::sigmaMean] = (mean.second - mean.first) / scale;
