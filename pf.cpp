@@ -4,6 +4,7 @@
 #include "objects.h"
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
+#include <boost/circular_buffer.hpp>
 #include <boost/program_options.hpp>
 #include "global.h"
 
@@ -19,7 +20,7 @@ int main(int argn, char* argv[]) {
         std::cout << config_desc << std::endl;
         return 0;
     }
-
+    bool done{false};
 // load inverted dataset
     std::string base_filename{vm["base-filename"].as<std::string>().c_str()};
     mtobj::Cov0 cov;
@@ -38,34 +39,80 @@ int main(int argn, char* argv[]) {
     }
 
     // create histograms
-    auto ax_h = boost::histogram::axis::regular<>(periods.size(),
-                                                    periods[0],
-                                                    periods[periods.size()-1], "T");
-    auto ax_v = boost::histogram::axis::regular<>(101,
-                                                    -1.,
-                                                    1., "component/absolute");
+    auto ax_h = boost::histogram::axis::regular<>(periods.size()*2,
+                                                  log10(periods[0]*0.9),
+                                                  log10(periods[periods.size()-1]*1.1), "T");
+    auto ax_v = boost::histogram::axis::regular<>(2001,
+                                                  -0.05,
+                                                  0.15, "component/absolute");
     auto zhist = boost::histogram::make_histogram(ax_h, ax_v);
 
     //load the first 1000 samples
     std::ifstream sample_output(base_filename+"_sample_out.bin");
     boost::archive::binary_iarchive sample_ia(sample_output);
     mtobj::model m;
-    std::vector<mtobj::model> s;
-    for (auto i=0; i<1000; i++) {
-        sample_ia >> m;
+    boost::circular_buffer<mtobj::model> s{1000};
+//    for (auto i=0; i<1000; i++) {
+    int iBuffer{0};
+    int n_m_processed{0};
+    while (!done){
+        try {
+            sample_ia >> m;
+        }
+        catch (boost::archive::archive_exception &e){
+            std::cout << "catch exception " << e.what() <<"\n";
+            done=true;
+            break;
+        }
         m.calc_params();
         s.push_back(m);
-    }
-    sample_output.close();
-    for (auto i=0; i<1000; i++) {
-//        fill the histogram
-        for (auto T : periods) {
-            auto z = s[i](T);
-            zhist(T,std::real(z.xy)/std::abs(z.xy));
+        iBuffer++;
+        if(iBuffer==s.capacity()){
+            iBuffer=0;
+            for (auto mb=s.begin();mb!=s.end();mb++){
+                n_m_processed++;
+                for (auto T : periods) {
+                    auto this_model = *mb;
+                    this_model.calc_params();
+                    auto z = this_model(T);
+//                        zhist(log10(T),std::real(z.xy)/std::abs(z.xy));
+//                    zhist(log10(T),std::real(z.xy)/std::abs(d[T].xy));
+                    zhist(log10(T),std::real(z.xy));
+                }
+            }
         }
     }
 
-
+    sample_output.close();
+//    for (auto i=0; i<1000; i++) {
+////        fill the histogram
+//        s[i].calc_params();
+//        for (auto T : periods) {
+//            auto z = s[i](T);
+//            zhist(log10(T),std::real(z.xy)/std::abs(z.xy));
+//        }
+//    }
+    std::ofstream histogram_file;
+    histogram_file.open(base_filename + "data_fit.res");
+    int linecount = 0;
+    for (auto &&x : boost::histogram::indexed(zhist)) {
+        auto t_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+        auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+        histogram_file << t_hist << " " << z_hist << " " << *x << "\n";
+        linecount++;
+        if (linecount % 2001 == 0) {
+            histogram_file << "\n";
+        }
+    }
+    histogram_file.close();
+    histogram_file.open("real_xy.txt");
+    for (auto D : d){
+        histogram_file << std::setprecision(3) << std::setw(15) << log10(D.first) << std::setw(15)
+                       //                       << std::real(D.second.xy)/std::abs(D.second.xy) << "\n";
+                       << std::real(D.second.xy) << std::setw(15) << cov[D.first] << "\n";
+    }
+    histogram_file.close();
+    std::cout << "number of model processed: " << n_m_processed <<"\n";
 //
 //
 //    std::cout << "=========================================================================\n";
@@ -74,7 +121,7 @@ int main(int argn, char* argv[]) {
 //    std::cout << s[1]<<std::endl;
 //    std::cout << "=========================================================================\n";
 
-return 0;
+    return 0;
 }
 
 

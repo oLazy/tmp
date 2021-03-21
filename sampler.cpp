@@ -185,6 +185,9 @@ int main(int argn, char* argv[]) {
     auto il = dl + std::get<3>(receipt);
     std::cout << "iso-switch probability limit shall be 1. In this run is " << il << "\n";
 
+
+    // START THE ALGORITHM //
+
     for (auto itern=1; itern!=itern_max;itern++) {
         Target target = Target::none;
         for (int iic = 0; iic < chains.size(); iic++) {
@@ -343,8 +346,9 @@ int main(int argn, char* argv[]) {
                     }
                     outbuffer.push_back(m);
                     if(iBuffer==outbuffer.capacity()){// buffer is full
-                        for(auto outm=outbuffer.begin();outm!=outbuffer.end();outm++)
-                        sample_oa << *outm;
+                        for(auto outm=outbuffer.begin();outm!=outbuffer.end();outm++){
+                        sample_oa << *outm;}
+                    iBuffer=0;
                     }
                     for (int i = 0; i < n_z_bins; i++) {
                         auto dz = (prior[paramType::depth].second - prior[paramType::depth].first) /
