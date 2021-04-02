@@ -4,4 +4,7 @@ input_folder/*.pdf
 input_folder/*.bin
 input_folder/*.dat
 *.cfg
+doxygen_config
+html/
+latex/
 .DS_Store
