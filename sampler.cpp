@@ -22,7 +22,7 @@ boost::program_options::options_description parse_cmdline(int argc, char *argv[]
 boost::program_options::options_description parse_config(boost::program_options::variables_map& p_vm);
 int generate_configuration_file(boost::program_options::variables_map& p_vm);
 
-#define _RJMCMCFUNC
+//#define _RJMCMCFUNC
 
 int main(int argn, char* argv[]) {
 

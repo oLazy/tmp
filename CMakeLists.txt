@@ -88,12 +88,16 @@ target_link_libraries(MTmgen PUBLIC
 		Boost_system
 		Boost_serialization
 		Boost_filesystem
+		Boost_timer
+		Boost_chrono
 		Boost_program_options)
 target_link_libraries(MTrgen PUBLIC
 		Boost_iostreams
 		Boost_system
 		Boost_serialization
 		Boost_filesystem
+		Boost_timer
+		Boost_chrono
 		Boost_program_options)
 target_link_libraries(MTSampler PUBLIC
 		Boost_iostreams
