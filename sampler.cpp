@@ -6,7 +6,9 @@
 #include <chrono>
 #include <boost/timer/timer.hpp>
 #include <boost/tuple/tuple.hpp>
+#include <boost/circular_buffer.hpp>
 #include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
 #include <iomanip>
 #include <boost/program_options.hpp>
 #include "global.h"
@@ -19,6 +21,8 @@ enum class SamplerStatus{burn_in, sampling, convergence};
 boost::program_options::options_description parse_cmdline(int argc, char *argv[], boost::program_options::variables_map& p_vm);
 boost::program_options::options_description parse_config(boost::program_options::variables_map& p_vm);
 int generate_configuration_file(boost::program_options::variables_map& p_vm);
+
+//#define _RJMCMCFUNC
 
 int main(int argn, char* argv[]) {
 
@@ -57,6 +61,14 @@ int main(int argn, char* argv[]) {
     const int itern_max{vm["n-max-iterations"].as<int>()};
     const int burn_in_n{vm["n-burn-in-iterations"].as<int>()};
     const int n_iter_in_pt{vm["n-iterations-between-pt-swaps"].as<int>()};
+    const int n_iter_between_convergence_checks{vm["n-iter-between-convergence-checks"].as<int>()};
+    const double significance{vm["significance"].as<double>()};
+    const double min_convergence_ratio{vm["min-convergence-ratio"].as<double>()};
+    const int subs1{vm["n1-subsample"].as<int>()};
+    const int subs2{vm["n2-subsample"].as<int>()};
+    int n_sample_collected{0};
+    int n_sample_collected1{0};
+    int n_sample_collected2{0};
     std::vector<std::map<std::string , unsigned long>> proposed(n_temp+1), accepted(n_temp+1);
     for (int iic=0; iic<n_temp;iic++) {
         proposed[iic]["perturb"] = 0;
@@ -68,6 +80,10 @@ int main(int argn, char* argv[]) {
         accepted[iic]["death"] = 0;
         accepted[iic]["iso_switch"] = 0;
     }
+    Buffer outbuffer{static_cast<unsigned long>(n_iter_in_pt)};
+    unsigned long iBuffer{0};
+    std::ofstream sample_output(base_filename+"_sample_out.bin");
+    boost::archive::binary_oarchive sample_oa(sample_output);
 
     initPrior({0.,max_depth},
               {vm["prior-min-sigma-mean"].as<double>(),vm["prior-max-sigma-mean"].as<double>()},
@@ -88,7 +104,7 @@ int main(int argn, char* argv[]) {
     model m;
     m.nodes.push_back({0,-3});
     m.nodes.push_back({3000,-3});
-
+    model ml_model; // {MAXIMUM LIKELIHOOD MODEL}
     if(!m.isInPrior()){
         std::cerr << "model 0 not in prior\n";
         return 17;
@@ -100,7 +116,7 @@ int main(int argn, char* argv[]) {
 
     m = chains[0]; // t=1
     // log dataset statistics
-
+    ml_model = m;
     auto el = mtobj::expectedLogL(d, cov);
     auto sl = mtobj::stdLogL(d);
     std::cout <<
@@ -108,6 +124,7 @@ int main(int argn, char* argv[]) {
               "\nLog[L(m0)]: " << mtobj::logL(m, d, cov) <<
               "\nstd(ELogL): " << mtobj::stdLogL(d) <<
               "\nvar(ELogL): " << mtobj::varLogL(d) << "\n";
+
     // create histogram
     //================================================================================================================//
     // SIGMA MEAN
@@ -118,6 +135,9 @@ int main(int argn, char* argv[]) {
                                                     prior[paramType::depth].first,
                                                     prior[paramType::depth].second, "depth");
     auto h_sigmaMean = boost::histogram::make_histogram(sm_ax1, sm_ax2);
+    auto h_sigmaMean1 = boost::histogram::make_histogram(sm_ax1, sm_ax2);
+    auto h_sigmaMean2 = boost::histogram::make_histogram(sm_ax1, sm_ax2);
+
     // SIGMA RATIO
     auto sr_ax1 = boost::histogram::axis::regular<>(n_sigma_bins,
                                                     prior[paramType::sigmaRatio].first,
@@ -126,6 +146,8 @@ int main(int argn, char* argv[]) {
                                                     prior[paramType::depth].first,
                                                     prior[paramType::depth].second, "depth");
     auto h_sigmaRatio = boost::histogram::make_histogram(sr_ax1,sr_ax2);
+    auto h_sigmaRatio1 = boost::histogram::make_histogram(sr_ax1,sr_ax2);
+    auto h_sigmaRatio2 = boost::histogram::make_histogram(sr_ax1,sr_ax2);
     // BETA STRIKE
     auto bs_ax1 = boost::histogram::axis::regular<>(n_sigma_bins,
                                                     prior[paramType::beta].first,
@@ -134,11 +156,24 @@ int main(int argn, char* argv[]) {
                                                     prior[paramType::depth].first,
                                                     prior[paramType::depth].second, "depth");
     auto h_betaStrike = boost::histogram::make_histogram(bs_ax1,bs_ax2);
+    auto h_betaStrike1 = boost::histogram::make_histogram(bs_ax1,bs_ax2);
+    auto h_betaStrike2 = boost::histogram::make_histogram(bs_ax1,bs_ax2);
 
-    auto logl_ax = boost::histogram::axis::regular<>(13,el-3*sl,el+3*sl,"logL");
+    auto logl_ax = boost::histogram::axis::regular<>(101,el-7*sl,el+7*sl,"logL");
     auto hll = boost::histogram::make_histogram(logl_ax);
-    auto ni_ax = boost::histogram::axis::regular<>(16,1,16,"interfaces");
-    auto h_n_inter = boost::histogram::make_histogram(ni_ax);
+    auto hll1 = boost::histogram::make_histogram(logl_ax);
+    auto hll2 = boost::histogram::make_histogram(logl_ax);
+    // anis probability===============================================================================================
+    auto anisax = boost::histogram::axis::regular<>(n_z_bins,
+                                                    prior[paramType::depth].first,
+                                                    prior[paramType::depth].second, "depth");
+    auto h_anis = boost::histogram::make_histogram(anisax);
+    auto h_anis1 = boost::histogram::make_histogram(anisax);
+    auto h_anis2 = boost::histogram::make_histogram(anisax);
+
+    //================================================================================================================
+    auto ni_ax = boost::histogram::axis::regular<>(max_interfaces,1,max_interfaces,"interfaces");
+    auto h_n_inter = boost::histogram::make_histogram(ni_ax); // TODO: update this histogram to save k in spite of #interfaces
     //================================================================================================================//
 
 
@@ -152,7 +187,10 @@ int main(int argn, char* argv[]) {
     auto il = dl + std::get<3>(receipt);
     std::cout << "iso-switch probability limit shall be 1. In this run is " << il << "\n";
 
-    for (auto itern=0; itern<itern_max;itern++) {
+
+    // START THE ALGORITHM //
+
+    for (auto itern=1; itern!=itern_max;itern++) {
         Target target = Target::none;
         for (int iic = 0; iic < chains.size(); iic++) {
             if(iic==0) {
@@ -164,6 +202,7 @@ int main(int argn, char* argv[]) {
             else{
                 target = Target::none;
             }
+
             m = chains[iic];
             move mt;
             double move_n = urn(gen);
@@ -178,7 +217,11 @@ int main(int argn, char* argv[]) {
             //====================================================
 
             switch (mt) {
-                case move::perturb: {
+                case move::perturb:
+#ifdef _RJMCMCFUNC
+                    rjmcmc::perturb(iic, m, d, cov, chains, proposed, accepted, timer);
+#else
+                    {
 //                    boost::timer::auto_cpu_timer tm;
                     for (int n = 0; n < m.nodes.size(); n++) { // perturb each parameter independently
                         for (int pt = paramType::begin; pt != paramType::end; pt++) {
@@ -204,9 +247,14 @@ int main(int argn, char* argv[]) {
                     }
 //                    std::cout << "perturb: ";
                 }
+#endif
                     break;
 
-                case move::birth: {
+                case move::birth:
+#ifdef _RJMCMCFUNC
+                    rjmcmc::birth(iic, m, d, cov, chains, max_interfaces, proposed, accepted, timer);
+#else
+                    {
                     proposed[iic]["birth"]++;
 //                    boost::timer::auto_cpu_timer tm;
                     if (m.nodes.size() < max_interfaces) {
@@ -232,8 +280,13 @@ int main(int argn, char* argv[]) {
 //                }
 //                    std::cout << "birth: ";
                 }
+#endif
                     break;
-                case move::death: {
+                case move::death:
+#ifdef _RJMCMCFUNC
+                    rjmcmc::death(iic, m, d, cov, chains, proposed, accepted, timer);
+#else
+                    {
                     proposed[iic]["death"]++;
 //                    boost::timer::auto_cpu_timer tm;
                     if (m.nodes.size() > 1) {
@@ -258,8 +311,13 @@ int main(int argn, char* argv[]) {
 //                }
 //                    std::cout << "death:";
                 }
+#endif
                     break;
-                case move::iso_switch: {
+                case move::iso_switch:
+#ifdef _RJMCMCFUNC
+                    rjmcmc::isoswap(iic, m, d, cov, chains, proposed, accepted, timer);
+#else
+                    {
 //                    boost::timer::auto_cpu_timer tm;
                     for (int n = 0; n < m.nodes.size(); n++) { // try to switch each node independently
                         proposed[iic]["iso_switch"]++;
@@ -281,75 +339,146 @@ int main(int argn, char* argv[]) {
                     }
 //                    std::cout << "perturb: ";
                 }
+#endif
                     break;
             }
+            if(m.beta == 1){
+                if(m.logL > ml_model.logL) ml_model = m; // save maximum likelihood model
+            }
+//            // fill the histogram
+//            ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+//            ██░▄▄▄██▄██░██░████░█████▄██░▄▄█▄░▄█░▄▄
+//            ██░▄▄███░▄█░██░████░▄▄░██░▄█▄▄▀██░██▄▄▀
+//            ██░████▄▄▄█▄▄█▄▄███▄██▄█▄▄▄█▄▄▄██▄██▄▄▄
+//            ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 
-            // fill the histogram
-
-            if ((status != SamplerStatus::burn_in) && (m.beta == 1)) { // only collect samples from t0 chain
-                h_n_inter(m.nodes.size());
-                hll(m.logL);
-                for (int i = 0; i < n_z_bins; i++) {
-                    auto dz = (prior[paramType::depth].second - prior[paramType::depth].first) /
-                              static_cast<double>(n_z_bins);
-                    auto z_hist = static_cast<double>(i) * dz + (dz * 0.5);
-//            auto z_hist = prior[paramType::depth].first;
-                    //            auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
-                    auto sm_hist = m.getNode(z_hist).params[paramType::sigmaMean].getValue();
-                    auto sr_hist = m.getNode(z_hist).params[paramType::sigmaRatio].getValue();
-                    auto bs_hist = m.getNode(z_hist).params[paramType::beta].getValue();
-
-                    h_sigmaMean(sm_hist, z_hist);
-                    // only add entries to anisotropy images if anisotropy is present
-                    if(not std::isnan(sr_hist)){
-                        h_sigmaRatio(sr_hist, z_hist);
+            if(status != SamplerStatus::burn_in) {// only collect samples if the burn-in phase is over
+                if (m.beta == 1) { // only collect samples from chains sampling at temperature t=1
+                    n_sample_collected++;
+                    iBuffer++;
+                    h_n_inter(m.nodes.size());
+                    hll(m.logL);
+                    if ((target == Target::sample1) && (itern % subs1 == 0)) {
+                        hll1(m.logL);
+                        n_sample_collected1++;
                     }
-                    if(not std::isnan(bs_hist)){
-                        h_betaStrike(bs_hist, z_hist);
+                    if ((target == Target::sample2) && (itern % subs2 == 0)) {
+                        hll2(m.logL);
+                        n_sample_collected2++;
                     }
-//            std::cout << z_hist << "\t" << sm_hist << "\n";
+                    outbuffer.push_back(m);
+                    if(iBuffer==outbuffer.capacity()){// buffer is full
+                        for(auto outm=outbuffer.begin();outm!=outbuffer.end();outm++){
+                            sample_oa << *outm;}
+                        iBuffer=0;
+                    }
+                    for (int i = 0; i < n_z_bins; i++) {
+                        auto dz = (prior[paramType::depth].second - prior[paramType::depth].first) /
+                                  static_cast<double>(n_z_bins);
+                        auto z_hist = static_cast<double>(i) * dz + (dz * 0.5);
+                        auto sm_hist = m.getNode(z_hist).params[paramType::sigmaMean].getValue();
+                        auto sr_hist = m.getNode(z_hist).params[paramType::sigmaRatio].getValue();
+                        auto bs_hist = m.getNode(z_hist).params[paramType::beta].getValue();
+                        // eventually here I can compute sigma high and sigma low to fill further histograms
+                        h_sigmaMean(sm_hist, z_hist);
+                        if(not std::isnan(sr_hist)){
+                            h_sigmaRatio(sr_hist, z_hist);
+                            h_anis(z_hist);
+                        }
+                        if(not std::isnan(bs_hist)){
+                            h_betaStrike(bs_hist, z_hist);
+                        }
+                        if ((target == Target::sample1) && (itern % subs1 == 0)) {
+                            h_sigmaMean1(sm_hist, z_hist);
+                            if(not std::isnan(sr_hist)){
+                                h_sigmaRatio1(sr_hist, z_hist);
+                                h_anis1(z_hist);
+                            }
+                            if(not std::isnan(bs_hist)){
+                                h_betaStrike1(bs_hist, z_hist);
+                            }
+                        }
+                        if ((target == Target::sample2) && (itern % subs2 == 0)) {
+                            h_sigmaMean2(sm_hist, z_hist);
+                            if(not std::isnan(sr_hist)){
+                                h_sigmaRatio2(sr_hist, z_hist);
+                                h_anis2(z_hist);
+                            }
+                            if(not std::isnan(bs_hist)){
+                                h_betaStrike2(bs_hist, z_hist);
+                            }
+                        }
+
+                    }
                 }
             }
 
-//        return 0;
 
-            if (((itern + 1) % 1000 == 0) && (iic==0)) {
+            if ((itern % 1000 == 0) && (iic==0)) {
                 auto t1 = Clock::now();
-                std::cout << "reached iter: " << itern + 1 << "in " <<
+                std::cout << "reached iter: " << itern << " in " <<
                           std::chrono::duration_cast<std::chrono::seconds>(t1 - t0).count() << " seconds. " <<
-                          "log(L) = " << m.logL << "\n";
-
+                          "log(L) = " << m.logL << ". Best log(L) till now = " << ml_model.logL << "\n";
             }
 
+        } // done  one iter for all chains
+
+
+        /*===============================================================
+         * CONVERGENCE TEST SECTION
+        =================================================================*/
+        if (    (status == SamplerStatus::sampling) &&
+                ((itern % n_iter_between_convergence_checks) == 0) ) { // if i am sampling I check the convergence between the samples
+            std::cout << "Testing for convergence ...\n";
+            std::cout << "itern: " << itern << "\n";
+            std::cout << "Sample1 size: " << n_sample_collected1 << "\n";
+            std::cout << "Sample2 size: " << n_sample_collected2 << "\n";
+            auto test_pass_ratio{0.};
+            auto w=1./static_cast<double>(n_z_bins);
+            for (auto i = 0; i < n_z_bins; i++) {
+                std::vector<double> sample1(n_sigma_bins, 0);
+                std::vector<double> sample2(n_sigma_bins, 0);
+                for (auto j = 0; j < n_sigma_bins; j++) {
+                    sample1[j] = h_sigmaMean1.at(j, i);
+                    sample2[j] = h_sigmaMean2.at(j, i);
+                }
+                if(cvt::ks2test(sample1, sample2, n_sample_collected1, n_sample_collected2, significance)) test_pass_ratio+=w;
+                if(test_pass_ratio>=(min_convergence_ratio)){
+                    status = SamplerStatus::convergence;
+                    break; // don't need other proofs, the two samples are in convergence
+                }
+            }
+            std::cout << "KS test pass ratio: " << test_pass_ratio <<"\n";
+            if (status == SamplerStatus::convergence) {
+                std::cout << "Sample1 and Sample2 are in convergence after " << itern  << " iterations.\n";
+                if(vm.count("Converge"))break;
+            }
+        }
+
+        if(status==SamplerStatus::burn_in) {    // if I am in burn-in, check if burn-in is over
+            for (auto iic = 0; iic < chains.size(); iic++) {
+                if (isLogLhoodExpected(chains[iic].logL, el, sl, chains[iic].beta, 1)) {
+                    status = SamplerStatus::sampling;
+                } else {
+                    status = SamplerStatus::burn_in;
+                    break;
+                }
+            }
+            if(!vm.count("Infer-burn-in")){
+                if(itern<=burn_in_n){
+                    status = SamplerStatus::burn_in;}
+                else{
+                    status = SamplerStatus::sampling;}
+            }
+            if(status==SamplerStatus::sampling) std::cout << "My principle states that burn-in is done after " << itern << " iterations.\n";
         }
 
         /*===============================================================
          * PARALLEL TEMPERING SECTION
         =================================================================*/
-        if ((itern + 1) % n_iter_in_pt == 0) { // propose exchange between chains
-            parallel_tempering_swap(chains);
-
-            if(status==SamplerStatus::burn_in) {    // if I am in burn-in, check if burn-in is over
-                for (auto iic = 0; iic < chains.size(); iic++) {
-                    if (isLogLhoodExpected(chains[iic].logL, el, sl, chains[iic].beta)) {
-                        status = SamplerStatus::sampling;
-                    } else {
-                        status = SamplerStatus::burn_in;
-                        break;
-                    }
-                }
-                if(status!=SamplerStatus::burn_in) std::cout << "My principle states that burn-in is done after " << itern + 1<< " iterations.\n";
-
-                if(!vm.count("Infer-burn-in")){
-                    if(itern<=burn_in_n){
-                        status = SamplerStatus::burn_in;}
-                    else{
-                        status = SamplerStatus::sampling;}
-                }
-            }
-        }
+        if (itern % n_iter_in_pt == 0) { // propose exchange between chains
+            parallel_tempering_swap(chains);}
         // ================================================================== //
-
     }
 // print dataset statistics
     std::cout << "\n===================================\n" << m << "\n===================================\n";
@@ -359,50 +488,125 @@ int main(int argn, char* argv[]) {
               "\nstd(ELogL): " << mtobj::stdLogL(d) <<
               "\nvar(ELogL): " << mtobj::varLogL(d) << "\n";
 
-    // print histogram data
-    std::ofstream histogram_file;
-    histogram_file.open(base_filename+"hist_gp_mean_data.res");
-    int linecount = 0;
-    for(auto &&x : boost::histogram::indexed(h_sigmaMean)){
-        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
-        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
-        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
-        linecount++;
-        if(linecount%n_sigma_bins==0) histogram_file << "\n";
-    }
-    histogram_file.close();
-    histogram_file.open(base_filename+"hist_gp_ratio_data.res");
-    linecount = 0;
-    for(auto &&x : boost::histogram::indexed(h_sigmaRatio)){
-        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
-        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
-        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
-        linecount++;
-        if(linecount%n_sigma_bins==0) histogram_file << "\n";
-    }
-    histogram_file.close();
+    if(status!=SamplerStatus::burn_in) {
+        // print histogram data if burn-in is over
+        std::ofstream histogram_file;
+        histogram_file.open(base_filename + "hist_gp_mean_data.res");
+        int linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_sigmaMean)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) {
+                histogram_file << "\n";
+            }
+        }
+        histogram_file.close();
 
-    histogram_file.open(base_filename+"hist_gp_strike_data.res");
-    linecount = 0;
-    for(auto &&x : boost::histogram::indexed(h_betaStrike)){
-        auto sm_hist = (x.bin(0).upper() - x.bin(0).lower())*0.5 + x.bin(0).lower();
-        auto z_hist = (x.bin(1).upper() - x.bin(1).lower())*0.5 + x.bin(1).lower();
-        histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
-        linecount++;
-        if(linecount%n_sigma_bins==0) histogram_file << "\n";
-    }
-    histogram_file.close();
+        histogram_file.open(base_filename + "hist1_gp_mean_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_sigmaMean1)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
 
-    std::ofstream hll_file(base_filename+"logL.res");
-    std::ofstream hin_file(base_filename+"hInter.res");
-    for (auto &&x : boost::histogram::indexed(hll)){
-        hll_file << 0.5*(x.bin(0).lower()+x.bin(0).upper()) << " " << *x << "\n";
+        histogram_file.open(base_filename + "hist2_gp_mean_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_sigmaMean2)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
+
+
+        histogram_file.open(base_filename + "hist_gp_ratio_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_sigmaRatio)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
+        histogram_file.open(base_filename + "hist1_gp_ratio_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_sigmaRatio1)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
+        histogram_file.open(base_filename + "hist2_gp_ratio_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_sigmaRatio2)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
+
+        histogram_file.open(base_filename + "hist_gp_strike_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_betaStrike)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
+
+        histogram_file.open(base_filename + "hist1_gp_strike_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_betaStrike1)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
+
+        histogram_file.open(base_filename + "hist2_gp_strike_data.res");
+        linecount = 0;
+        for (auto &&x : boost::histogram::indexed(h_betaStrike2)) {
+            auto sm_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower();
+            auto z_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower();
+            histogram_file << sm_hist << " " << z_hist << " " << *x << "\n";
+            linecount++;
+            if (linecount % n_sigma_bins == 0) histogram_file << "\n";
+        }
+        histogram_file.close();
+
+        std::ofstream hll_file(base_filename + "logL.res");
+        std::ofstream hin_file(base_filename + "hInter.res");
+        for (auto &&x : boost::histogram::indexed(hll)) {
+            hll_file << 0.5 * (x.bin(0).lower() + x.bin(0).upper()) << " " << *x << "\n";
+        }
+        hll_file.close();
+        for (auto &&x : boost::histogram::indexed(h_n_inter)) {
+            hin_file << 0.5 * (x.bin(0).lower() + x.bin(0).upper()) << " " << *x << "\n";
+        }
+        hin_file.close();
     }
-    hll_file.close();
-    for (auto &&x : boost::histogram::indexed(h_n_inter)){
-        hin_file << 0.5*(x.bin(0).lower()+x.bin(0).upper()) << " " << *x << "\n";
-    }
-    hin_file.close();
+    // OUTPUT ML MODEL
+    gp_utils::model2disk(ml_model, paramType::sigmaMean, prior, "ml_sigma_mean.res");
+    gp_utils::model2disk(ml_model, paramType::sigmaRatio, prior, "ml_sigma_ratio.res");
+    gp_utils::model2disk(ml_model, paramType::beta, prior, "ml_beta_strike.res");
+
     std::cout << "time spent in log(L) subroutine: " << timer.format() << "\n";
 #ifdef _OMP
     std::cout << "program run in parallel with OMP using a team of 4 threads.\n";
@@ -423,6 +627,8 @@ int main(int argn, char* argv[]) {
         faccst << "\n\n";
     }
     faccst.close();
+    sample_output.close();
+
     return 0;
 }
 
@@ -474,6 +680,11 @@ boost::program_options::options_description parse_config(boost::program_options:
             ("n-burn-in-iterations", po::value<int>(), "Maximum number of iterations to be used in the burn-in phase. If the flag --Infer-burn-in is used than this value will be ignored.")
             ("random-seed", po::value<int>(), "Seed to initialize random engine.")
             ("n-iterations-between-pt-swaps", po::value<int>(), "Number of iterations between two subsequent parallel tempering swaps.")
+            ("n-iter-between-convergence-checks", po::value<int>(), "Number of iterations between two subsequent tests for convergence.")
+            ("significance", po::value<double>(), "Significance value for the convergence test.")
+            ("n1-subsample", po::value<int>(), "Sub-sample interval for Sample 1")
+            ("n2-subsample", po::value<int>(), "Sub-sample interval for Sample 2")
+            ("min-convergence-ratio", po::value<double>()->default_value(0.90), "Ratio of histograms that must results compatible according to the ks statistics to ensure convergence.\nUnused if the code runs without the -v flag." )
             // Distribution section
             ("prior-min-sigma-mean",po::value<double>(), "lower bound for log(sigma-mean).")
             ("prior-max-sigma-mean",po::value<double>(), "upper bound for log(sigma-mean).")
@@ -508,13 +719,18 @@ int generate_configuration_file(boost::program_options::variables_map& p_vm){
         os << "n-interface-max=8" << "\n";
         os << "n-sigma-bins=512" << "\n";
         os << "n-z-bins=1024" << "\n";
-        os << "n-temperatures=7" << "\n";
+        os << "n-temperatures=15" << "\n";
         os << "max-temperature=1000." << "\n";
         os << "max-depth=10000." << "\n";
         os << "n-max-iterations=300000" << "\n";
         os << "n-burn-in-iterations=30000" << "\n";
         os << "random-seed=23" << "\n";
-        os << "n-iterations-between-pt-swaps=1000" << "\n";
+        os << "n-iterations-between-pt-swaps=100" << "\n";
+        os << "n-iter-between-convergence-checks=1000" << "\n";
+        os << "significance=0.05" << "\n";
+        os << "n1-subsample=2" << "\n";
+        os << "n2-subsample=3" << "\n";
+        os << "min-convergence-ratio=0.90" << "\n";
         // Distribution section
         os << "prior-min-sigma-mean=-5" << "\n";
         os << "prior-max-sigma-mean=2" << "\n";
@@ -529,7 +745,7 @@ int generate_configuration_file(boost::program_options::variables_map& p_vm){
         os << "death=0.1" << "\n";
         os << "iso-switch=0.1" << "\n";
         // File names
-        os << "base-filename=cg_model_1\n";
+        os << "base-filename=test\n";
         return 0;}
     catch (...){
         return -1;

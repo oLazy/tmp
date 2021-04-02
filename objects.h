@@ -20,6 +20,8 @@
 #include <boost/histogram.hpp>
 #include <boost/timer/timer.hpp>
 #include <boost/program_options.hpp>
+#include <boost/math/special_functions/gamma.hpp>
+#include <boost/circular_buffer.hpp>
 #ifdef _OMP
 #include <omp.h>
 #endif
@@ -33,6 +35,7 @@ extern boost::random::mt19937 gen;
 extern boost::random::normal_distribution<double> rn;
 extern boost::random::uniform_real_distribution<double> urn;
 
+///@file
 namespace mtobj {
     /*include code from the old project */
     //TODO adjust the calc_params method to ensure physical parameter units are correct
@@ -47,12 +50,18 @@ namespace mtobj {
     double static constexpr pi{M_PI};
 
     class ModelOutOfPrior : public std::exception {
+        ///
+        /// \return exception. Used to verify input data.
         virtual const char *what() const throw() {
             return "Model out prior";
         }
     };
-
-
+/**
+ * @brief rotate complex impedance tensor around the z axis
+ * @param za input impedance tensor
+ * @param beta_rad beta_rad rotation angle (in rads)
+ * @return za in the new coordinate frame
+ */
     MTTensor rot_z(MTTensor const &za, double beta_rad) {
         if (std::isnan(beta_rad)) beta_rad = 0.;
         MTTensor result;
@@ -89,7 +98,11 @@ namespace mtobj {
                                          {3, "beta"}};
     typedef std::map<int, std::pair<double, double> > Prior;
     std::map<int, std::pair<double, double> > prior;
-
+/// Initialize MT uniform prior
+/// \param depth limits for depth
+/// \param mean limits for \f$\bar{\sigma}\f$ (log space)
+/// \param ratio limits for \f$\frac{\sigma_{low}}{\sigma_{high}}\f$ (log space)
+/// \param beta limits for \f$\beta_{s}\f$ in deg
     void initPrior(limits depth, limits mean, limits ratio, limits beta) {
         prior[paramType::depth] = depth;
         prior[paramType::sigmaMean] = mean;
@@ -98,6 +111,13 @@ namespace mtobj {
     }
 
     std::map<int, double> proposal; //stores the sd for perturbations
+    /// Initilize the scales (std) for gaussian perturbation of parameters. It is computed as
+    /// \f$ \frac{m_{MAX} - m{min}}{scale}\f$
+    /// \param depth prior limits
+    /// \param mean prior limits
+    /// \param ratio prior limits
+    /// \param beta prior limits
+    /// \param scale double
     void initProposal(limits depth, limits mean, limits ratio, limits beta, double scale) {
         proposal[paramType::depth] = (depth.second - depth.first) / scale;
         proposal[paramType::sigmaMean] = (mean.second - mean.first) / scale;
@@ -608,7 +628,7 @@ namespace mtobj {
                 auto bj = chains[j].beta;
                 auto bk = chains[k].beta;
                 if(urn(gen) <  pow(exp(chains[j].logL - chains[k].logL),(bk-bj))){
-                    std::cerr << "swapping chain no. " << j << " with chain no. " << k <<"\n";
+                    // std::cerr << "swapping chain no. " << j << " with chain no. " << k <<"\n";
                     chains[j].setBeta(bk);
                     chains[k].setBeta(bj);
                     std::swap(chains[j],chains[k]); // i-th temperature remains associated to the i-th chain
@@ -711,7 +731,260 @@ namespace mtobj {
             chains.push_back(m);
         }
     }
-
+    typedef boost::circular_buffer<model> Buffer;
 }
 
+namespace rjmcmc {
+    void isoswap(int const ichain,
+                 mtobj::model &model,
+                 mtobj::Dataset const &d,
+                 mtobj::Cov0 const &cov,
+                 std::vector<mtobj::model> &chains,
+                 std::vector<std::map<std::string, unsigned long>> &proposed,
+                 std::vector<std::map<std::string, unsigned long>> &accepted,
+                 boost::timer::cpu_timer &timer) {
+        for (int n = 0; n < model.nodes.size(); n++) { // try to switch each node independently
+            proposed[ichain]["iso_switch"]++;
+            auto m1 = iso_switch(model, n);
+            if (m1.isInPrior() && m1.isValid()) {
+                m1.calc_params();
+                timer.resume();
+                m1.setLogL(logL(m1, d, cov));
+                timer.stop();
+                auto u = urn(gen);
+                auto l0 = model.logL;
+                auto l1 = m1.logL;
+                if (u < pow(exp(l1 - l0), model.beta)) {
+                    model = m1;
+                    chains[ichain] = m1;
+                    accepted[ichain]["iso_switch"]++;
+                }
+            }
+        }
+    }
+
+    void perturb(int const ichain,
+                 mtobj::model &model,
+                 mtobj::Dataset const &d,
+                 mtobj::Cov0 const &cov,
+                 std::vector<mtobj::model> &chains,
+                 std::vector<std::map<std::string, unsigned long>> &proposed,
+                 std::vector<std::map<std::string, unsigned long>> &accepted,
+                 boost::timer::cpu_timer &timer) {
+        for (int n = 0; n < model.nodes.size(); n++) { // perturb each parameter independently
+            for (int pt = mtobj::paramType::begin; pt != mtobj::paramType::end; pt++) {
+                if (model.nodes[n].params[pt].isActive()) {
+                    proposed[ichain]["perturb"]++;
+                    auto m1 = perturb(model, n, static_cast<mtobj::paramType>(pt));
+                    if (m1.isInPrior() && m1.isValid()) {
+                        m1.calc_params();
+                        timer.resume();
+                        m1.setLogL(logL(m1, d, cov));
+                        timer.stop();
+                        auto u = urn(gen);
+                        auto l0 = model.logL;
+                        auto l1 = m1.logL;
+                        if (u < pow(exp(l1 - l0), model.beta)) {
+                            model = m1;
+                            chains[ichain] = m1;
+                            accepted[ichain]["perturb"]++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void birth(int const ichain,
+               mtobj::model &model,
+               mtobj::Dataset const &d,
+               mtobj::Cov0 const &cov,
+               std::vector<mtobj::model> &chains,
+               int const& max_interfaces,
+               std::vector<std::map<std::string, unsigned long>> &proposed,
+               std::vector<std::map<std::string, unsigned long>> &accepted,
+               boost::timer::cpu_timer &timer){
+            proposed[ichain]["birth"]++;
+            if (model.nodes.size() < max_interfaces) {
+                auto m1 = mtobj::birth(model, mtobj::birthType::any);
+                if (m1.isInPrior()) {
+                    m1.calc_params();
+                    timer.resume();
+                    m1.setLogL(logL(m1, d, cov));
+                    timer.stop();
+                    auto u = urn(gen);
+                    auto l0 = model.logL;
+                    auto l1 = m1.logL;
+                    if (u < pow(exp(l1 - l0), model.beta)) {
+                        model = m1;
+                        chains[ichain] = m1;
+                        accepted[ichain]["birth"]++;
+                    }
+                }
+
+            }
+        }
+
+        void death(int const ichain,
+                   mtobj::model &model,
+                   mtobj::Dataset const &d,
+                   mtobj::Cov0 const &cov,
+                   std::vector<mtobj::model> &chains,
+                   std::vector<std::map<std::string, unsigned long>> &proposed,
+                   std::vector<std::map<std::string, unsigned long>> &accepted,
+                   boost::timer::cpu_timer &timer){
+            proposed[ichain]["death"]++;
+            if (model.nodes.size() > 1) {
+                auto m1 = mtobj::death(model);
+                if (m1.isInPrior()) {
+                    m1.calc_params();
+                    timer.resume();
+                    m1.setLogL(logL(m1, d, cov));
+                    timer.stop();
+                    auto u = urn(gen);
+                    auto l0 = model.logL;
+                    auto l1 = m1.logL;
+                    if (u < pow(exp(l1 - l0), model.beta)) {
+                        model = m1;
+                        chains[ichain] = m1;
+                        accepted[ichain]["death"]++;
+                    }
+                }
+            }
+        }
+
+}
+namespace cvt { // convergence tools
+    /* here I will put the implementation of chi2 test for 2 binned datasets as described in
+    @book{nr1985,
+     title={Numerical Recipes: Example Book: Fortran},
+     author={Press, William H and Vetterling, William T and Teukolsky, Saul A and Flannery, Brian P},
+     year={1985},
+     publisher={Cambridge Univ. P.},
+     pages={471-472}}
+     */
+    enum chi2twoBinsResults {
+        dof = 0, significance = 1, chi2 = 2
+    };
+
+    // to get the intended result:
+    // auto res = std::get<cvt::whatIneed>(chi2twoBins(<whatever>))
+    std::tuple<int, double, double> chi2twoBins(std::vector<double> const &bins1,
+                                                std::vector<double> const &bins2,
+                                                int k_constraints = -1) {
+        if (bins1.size() != bins2.size()) throw std::runtime_error("histograms have incompatible dimension.");
+        int df = bins1.size() - 1 - k_constraints;
+        double chi2 = 0.;
+        for (auto i = 0; i < bins1.size(); i++) {
+            if ((bins1[i] == 0) and (bins2[i] == 0)) {
+                df--; // no data means one less degree of freedom
+            } else {
+                chi2 += pow((bins1[i] - bins2[i]), 2) / (bins1[i] + bins2[i]);
+            }
+        }
+        if (df < 1) {
+            std::cout << "HUGE PROBLEM! Check the code\n";
+            df = 1;
+        }
+        double prob = boost::math::gamma_q<double, double>(0.5 * static_cast<double>(df),
+                                                           0.5 * chi2); // chi2 probability function
+        return std::make_tuple(df, prob, chi2);
+    }
+
+    std::vector<double> empirical_cdf(std::vector<double> const &v) {
+        auto V = std::accumulate(v.begin(), v.end(), 0.);
+        std::vector<double> r{v[0] / V};
+        for (auto i = 1; i < v.size(); i++) {
+            r.push_back(r[i - 1] + v[i] / V);
+        }
+        return r;
+    }
+
+    double ks2sample_stat(std::vector<double> const &v1, std::vector<double> const &v2) {
+        if (v1.size() != v2.size())
+            throw std::logic_error("ks statistics is implemented only for histograms with the same number of bins");
+        // create empirical cdf for v1 and v2
+        auto cdf1 = empirical_cdf(v1);
+        auto cdf2 = empirical_cdf(v2);
+        double d{0};
+        for (auto i = 0; i < v1.size(); i++) {
+            double dis = std::abs(cdf1[i] - cdf2[i]);
+            if (dis >= d) d = dis; //take the maximum distance
+        }
+        return d;
+    }
+
+    const std::map<double, double> c_alpha{{0.10, 1.22},
+                                           {0.05, 1.36},
+                                           {0.025, 1.48},
+                                           {0.01, 1.63},
+                                           {0.005, 1.73},
+                                           {0.001, 1.95}};
+
+    ///
+    ///implements ks test for the compatibility of two histograms
+/// \param v1 hist entries for sample 1
+/// \param v2 hist entries for sample 2
+/// \param m size of sample 1
+/// \param n size of sample 2
+/// \param sig alpha. Level of significance is 1-alpha
+/// \return true if I cannot disproof the H0 hypotesis that v1 and v2 are from the same distribution. false otherwise
+    bool ks2test(std::vector<double> const &v1, std::vector<double> const &v2, int m, int n, double sig) {
+        if(m<12 or n<12){
+            throw std::invalid_argument("Both m and n ma=ust be > 12.");
+        }
+        if (c_alpha.find(sig) == c_alpha.end()) { // value not in table
+            throw std::invalid_argument(
+                    "c_alpha table does not contains level of significance alpha = " + std::to_string(sig));
+        }
+        auto D_a = c_alpha.at(sig) * std::sqrt(static_cast<double>(m + n) / static_cast<double>(n * m));
+        auto D = ks2sample_stat(v1, v2);
+
+        if (D > D_a) {
+//            std::cerr << "m: " << m << "; n: " << n << "; c: " << c_alpha.at(sig) << "; D: " << D << "; D_a:" << D_a << "\n";
+            return false;
+        }
+        return true;
+    }
+}
+namespace gp_utils{
+    void model2disk(mtobj::model m, int paramType, mtobj::Prior const &prior,std::string const & filename){
+        std::vector<double> z, sm, sr, sh, sl, bs;
+        double x1, x2, y1, y2;
+        std::ofstream os;
+        os.open(filename);
+        os << std::setprecision(3);
+        for (auto i=0; i< m.nodes.size(); i++){
+            if (i < m.nodes.size() - 1){
+                y1 = m.nodes[i].params[mtobj::paramType::depth].getValue();
+                y2 = m.nodes[i+1].params[mtobj::paramType::depth].getValue();
+
+                x1 = m.nodes[i].params[paramType].getValue();
+                x2 = m.nodes[i+1].params[paramType].getValue();
+            } else {
+                y1 = m.nodes[i].params[mtobj::paramType::depth].getValue();
+                y2 = 410000; // lithosphere-asthenosphere boundary
+
+                x1 = m.nodes[i].params[paramType].getValue();
+                x2 = x1;
+            }
+            // if exists vertical line
+            if (!std::isnan(x1)) {
+                os << std::setw(15) << x1 << std::setw(15) << y1 << "\n";
+                os << std::setw(15) << x1 << std::setw(15) << y2 << "\n";
+                os << "\n";
+            } // if exists, horizontal line
+            if (!std::isnan(x1) && !std::isnan(x2)){
+                os << std::setw(15) << x1 << std::setw(15) << y2 << "\n";
+                os << std::setw(15) << x2 << std::setw(15) << y2 << "\n";
+                os << "\n";
+            }
+
+        }
+        os.close();
+    }
+    void d2hist2disk(boost::histogram::histogram<std::tuple<>,boost::histogram::unlimited_storage<>> const &hist){
+
+    }
+}
 #endif //MT1DANISMODELPARAMS_OBJECTS_H

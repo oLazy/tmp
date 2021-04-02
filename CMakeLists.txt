@@ -9,10 +9,13 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIE")
 #											#
 #											#
 find_package(Boost REQUIRED serialization iostreams system filesystem timer program_options)
+
 if (Boost_FOUND)
 	message("BOOST FOUND")
 	message("VERSION: ${Boost_VERSION}")
 endif()
+
+#find_package(ROOT COMPONENTS RooStats)
 add_library(Boost_iostreams STATIC IMPORTED)
 add_library(Boost_serialization STATIC IMPORTED)
 add_library(Boost_system STATIC IMPORTED)
@@ -58,6 +61,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -fno-omit-frame-pointer -mno-omit
 add_executable(MTmgen mt1danis_generate_model.cpp objects.h MTTensor.cpp)
 add_executable(MTrgen generate_replica.cpp objects.h MTTensor.cpp)
 add_executable(MTSampler sampler.cpp objects.h MTTensor.cpp)
+add_executable(MTPlotFit pf.cpp objects.h MTTensor.cpp)
+
 
 #target_include_directories(mt1danisModelParams PUBLIC ${Boost_INCLUDE_DIRS})
 #target_include_directories(doTest PUBLIC ${Boost_INCLUDE_DIRS})
@@ -65,6 +70,7 @@ add_executable(MTSampler sampler.cpp objects.h MTTensor.cpp)
 target_include_directories(MTmgen PUBLIC ${Boost_INCLUDE_DIRS})
 target_include_directories(MTrgen PUBLIC ${Boost_INCLUDE_DIRS})
 target_include_directories(MTSampler PUBLIC ${Boost_INCLUDE_DIRS})
+target_include_directories(MTPlotFit PUBLIC ${Boost_INCLUDE_DIRS})
 
 #target_link_libraries(mt1danisModelParams PUBLIC
 #	Boost_iostreams
@@ -82,14 +88,27 @@ target_link_libraries(MTmgen PUBLIC
 		Boost_system
 		Boost_serialization
 		Boost_filesystem
+		Boost_timer
+		Boost_chrono
 		Boost_program_options)
 target_link_libraries(MTrgen PUBLIC
 		Boost_iostreams
 		Boost_system
 		Boost_serialization
 		Boost_filesystem
+		Boost_timer
+		Boost_chrono
 		Boost_program_options)
 target_link_libraries(MTSampler PUBLIC
+		Boost_iostreams
+		Boost_system
+		Boost_serialization
+		Boost_filesystem
+		Boost_timer
+		Boost_chrono
+		Boost_program_options)
+
+target_link_libraries(MTPlotFit PUBLIC
 		Boost_iostreams
 		Boost_system
 		Boost_serialization
