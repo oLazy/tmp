@@ -734,6 +734,126 @@ namespace mtobj {
     typedef boost::circular_buffer<model> Buffer;
 }
 
+namespace rjmcmc {
+    void isoswap(int const ichain,
+                 mtobj::model &model,
+                 mtobj::Dataset const &d,
+                 mtobj::Cov0 const &cov,
+                 std::vector<mtobj::model> &chains,
+                 std::vector<std::map<std::string, unsigned long>> &proposed,
+                 std::vector<std::map<std::string, unsigned long>> &accepted,
+                 boost::timer::cpu_timer &timer) {
+        for (int n = 0; n < model.nodes.size(); n++) { // try to switch each node independently
+            proposed[ichain]["iso_switch"]++;
+            auto m1 = iso_switch(model, n);
+            if (m1.isInPrior() && m1.isValid()) {
+                m1.calc_params();
+                timer.resume();
+                m1.setLogL(logL(m1, d, cov));
+                timer.stop();
+                auto u = urn(gen);
+                auto l0 = model.logL;
+                auto l1 = m1.logL;
+                if (u < pow(exp(l1 - l0), model.beta)) {
+                    model = m1;
+                    chains[ichain] = m1;
+                    accepted[ichain]["iso_switch"]++;
+                }
+            }
+        }
+    }
+
+    void perturb(int const ichain,
+                 mtobj::model &model,
+                 mtobj::Dataset const &d,
+                 mtobj::Cov0 const &cov,
+                 std::vector<mtobj::model> &chains,
+                 std::vector<std::map<std::string, unsigned long>> &proposed,
+                 std::vector<std::map<std::string, unsigned long>> &accepted,
+                 boost::timer::cpu_timer &timer) {
+        for (int n = 0; n < model.nodes.size(); n++) { // perturb each parameter independently
+            for (int pt = mtobj::paramType::begin; pt != mtobj::paramType::end; pt++) {
+                if (model.nodes[n].params[pt].isActive()) {
+                    proposed[ichain]["perturb"]++;
+                    auto m1 = perturb(model, n, static_cast<mtobj::paramType>(pt));
+                    if (m1.isInPrior() && m1.isValid()) {
+                        m1.calc_params();
+                        timer.resume();
+                        m1.setLogL(logL(m1, d, cov));
+                        timer.stop();
+                        auto u = urn(gen);
+                        auto l0 = model.logL;
+                        auto l1 = m1.logL;
+                        if (u < pow(exp(l1 - l0), model.beta)) {
+                            model = m1;
+                            chains[ichain] = m1;
+                            accepted[ichain]["perturb"]++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void birth(int const ichain,
+               mtobj::model &model,
+               mtobj::Dataset const &d,
+               mtobj::Cov0 const &cov,
+               std::vector<mtobj::model> &chains,
+               int const& max_interfaces,
+               std::vector<std::map<std::string, unsigned long>> &proposed,
+               std::vector<std::map<std::string, unsigned long>> &accepted,
+               boost::timer::cpu_timer &timer){
+            proposed[ichain]["birth"]++;
+            if (model.nodes.size() < max_interfaces) {
+                auto m1 = mtobj::birth(model, mtobj::birthType::any);
+                if (m1.isInPrior()) {
+                    m1.calc_params();
+                    timer.resume();
+                    m1.setLogL(logL(m1, d, cov));
+                    timer.stop();
+                    auto u = urn(gen);
+                    auto l0 = model.logL;
+                    auto l1 = m1.logL;
+                    if (u < pow(exp(l1 - l0), model.beta)) {
+                        model = m1;
+                        chains[ichain] = m1;
+                        accepted[ichain]["birth"]++;
+                    }
+                }
+
+            }
+        }
+
+        void death(int const ichain,
+                   mtobj::model &model,
+                   mtobj::Dataset const &d,
+                   mtobj::Cov0 const &cov,
+                   std::vector<mtobj::model> &chains,
+                   std::vector<std::map<std::string, unsigned long>> &proposed,
+                   std::vector<std::map<std::string, unsigned long>> &accepted,
+                   boost::timer::cpu_timer &timer){
+            proposed[ichain]["death"]++;
+            if (model.nodes.size() > 1) {
+                auto m1 = mtobj::death(model);
+                if (m1.isInPrior()) {
+                    m1.calc_params();
+                    timer.resume();
+                    m1.setLogL(logL(m1, d, cov));
+                    timer.stop();
+                    auto u = urn(gen);
+                    auto l0 = model.logL;
+                    auto l1 = m1.logL;
+                    if (u < pow(exp(l1 - l0), model.beta)) {
+                        model = m1;
+                        chains[ichain] = m1;
+                        accepted[ichain]["death"]++;
+                    }
+                }
+            }
+        }
+
+}
 namespace cvt { // convergence tools
     /* here I will put the implementation of chi2 test for 2 binned datasets as described in
     @book{nr1985,
@@ -862,6 +982,9 @@ namespace gp_utils{
 
         }
         os.close();
+    }
+    void d2hist2disk(boost::histogram::histogram<std::tuple<>,boost::histogram::unlimited_storage<>> const &hist){
+
     }
 }
 #endif //MT1DANISMODELPARAMS_OBJECTS_H

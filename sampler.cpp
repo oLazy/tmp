@@ -22,6 +22,8 @@ boost::program_options::options_description parse_cmdline(int argc, char *argv[]
 boost::program_options::options_description parse_config(boost::program_options::variables_map& p_vm);
 int generate_configuration_file(boost::program_options::variables_map& p_vm);
 
+#define _RJMCMCFUNC
+
 int main(int argn, char* argv[]) {
 
     // parse command line and config file
@@ -215,7 +217,11 @@ int main(int argn, char* argv[]) {
             //====================================================
 
             switch (mt) {
-                case move::perturb: {
+                case move::perturb:
+#ifdef _RJMCMCFUNC
+                    rjmcmc::perturb(iic, m, d, cov, chains, proposed, accepted, timer);
+#else
+                    {
 //                    boost::timer::auto_cpu_timer tm;
                     for (int n = 0; n < m.nodes.size(); n++) { // perturb each parameter independently
                         for (int pt = paramType::begin; pt != paramType::end; pt++) {
@@ -241,9 +247,14 @@ int main(int argn, char* argv[]) {
                     }
 //                    std::cout << "perturb: ";
                 }
+#endif
                     break;
 
-                case move::birth: {
+                case move::birth:
+#ifdef _RJMCMCFUNC
+                    rjmcmc::birth(iic, m, d, cov, chains, max_interfaces, proposed, accepted, timer);
+#else
+                    {
                     proposed[iic]["birth"]++;
 //                    boost::timer::auto_cpu_timer tm;
                     if (m.nodes.size() < max_interfaces) {
@@ -269,8 +280,13 @@ int main(int argn, char* argv[]) {
 //                }
 //                    std::cout << "birth: ";
                 }
+#endif
                     break;
-                case move::death: {
+                case move::death:
+#ifdef _RJMCMCFUNC
+                    rjmcmc::death(iic, m, d, cov, chains, proposed, accepted, timer);
+#else
+                    {
                     proposed[iic]["death"]++;
 //                    boost::timer::auto_cpu_timer tm;
                     if (m.nodes.size() > 1) {
@@ -295,8 +311,13 @@ int main(int argn, char* argv[]) {
 //                }
 //                    std::cout << "death:";
                 }
+#endif
                     break;
-                case move::iso_switch: {
+                case move::iso_switch:
+#ifdef _RJMCMCFUNC
+                    rjmcmc::isoswap(iic, m, d, cov, chains, proposed, accepted, timer);
+#else
+                    {
 //                    boost::timer::auto_cpu_timer tm;
                     for (int n = 0; n < m.nodes.size(); n++) { // try to switch each node independently
                         proposed[iic]["iso_switch"]++;
@@ -318,6 +339,7 @@ int main(int argn, char* argv[]) {
                     }
 //                    std::cout << "perturb: ";
                 }
+#endif
                     break;
             }
             if(m.beta == 1){
@@ -347,8 +369,8 @@ int main(int argn, char* argv[]) {
                     outbuffer.push_back(m);
                     if(iBuffer==outbuffer.capacity()){// buffer is full
                         for(auto outm=outbuffer.begin();outm!=outbuffer.end();outm++){
-                        sample_oa << *outm;}
-                    iBuffer=0;
+                            sample_oa << *outm;}
+                        iBuffer=0;
                     }
                     for (int i = 0; i < n_z_bins; i++) {
                         auto dz = (prior[paramType::depth].second - prior[paramType::depth].first) /
