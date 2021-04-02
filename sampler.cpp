@@ -22,7 +22,7 @@ boost::program_options::options_description parse_cmdline(int argc, char *argv[]
 boost::program_options::options_description parse_config(boost::program_options::variables_map& p_vm);
 int generate_configuration_file(boost::program_options::variables_map& p_vm);
 
-//#define _RJMCMCFUNC
+#define _RJMCMCFUNC
 
 int main(int argn, char* argv[]) {
 
@@ -218,128 +218,16 @@ int main(int argn, char* argv[]) {
 
             switch (mt) {
                 case move::perturb:
-#ifdef _RJMCMCFUNC
                     rjmcmc::perturb(iic, m, d, cov, chains, proposed, accepted, timer);
-#else
-                    {
-//                    boost::timer::auto_cpu_timer tm;
-                    for (int n = 0; n < m.nodes.size(); n++) { // perturb each parameter independently
-                        for (int pt = paramType::begin; pt != paramType::end; pt++) {
-                            if (m.nodes[n].params[pt].isActive()) {
-                                proposed[iic]["perturb"]++;
-                                auto m1 = perturb(m, n, static_cast<paramType>(pt));
-                                if (m1.isInPrior() && m1.isValid()) {
-                                    m1.calc_params();
-                                    timer.resume();
-                                    m1.setLogL(logL(m1, d, cov));
-                                    timer.stop();
-                                    auto u = urn(gen);
-                                    auto l0 = m.logL;
-                                    auto l1 = m1.logL;
-                                    if (u < pow(exp(l1 - l0), m.beta)) {
-                                        m = m1;
-                                        chains[iic] = m1;
-                                        accepted[iic]["perturb"]++;
-                                    }
-                                }
-                            }
-                        }
-                    }
-//                    std::cout << "perturb: ";
-                }
-#endif
                     break;
-
                 case move::birth:
-#ifdef _RJMCMCFUNC
                     rjmcmc::birth(iic, m, d, cov, chains, max_interfaces, proposed, accepted, timer);
-#else
-                    {
-                    proposed[iic]["birth"]++;
-//                    boost::timer::auto_cpu_timer tm;
-                    if (m.nodes.size() < max_interfaces) {
-                        auto m1 = birth(m, birthType::any);
-                        if (m1.isInPrior()) {
-                            m1.calc_params();
-                            timer.resume();
-                            m1.setLogL(logL(m1, d, cov));
-                            timer.stop();
-                            auto u = urn(gen);
-                            auto l0 = m.logL;
-                            auto l1 = m1.logL;
-                            if (u < pow(exp(l1 - l0), m.beta)) {
-                                m = m1;
-                                chains[iic] = m1;
-                                accepted[iic]["birth"]++;
-                            }
-                        }
-
-                    }
-//                else {
-//                    continue;
-//                }
-//                    std::cout << "birth: ";
-                }
-#endif
                     break;
                 case move::death:
-#ifdef _RJMCMCFUNC
                     rjmcmc::death(iic, m, d, cov, chains, proposed, accepted, timer);
-#else
-                    {
-                    proposed[iic]["death"]++;
-//                    boost::timer::auto_cpu_timer tm;
-                    if (m.nodes.size() > 1) {
-                        auto m1 = death(m);
-                        if (m1.isInPrior()) {
-                            m1.calc_params();
-                            timer.resume();
-                            m1.setLogL(logL(m1, d, cov));
-                            timer.stop();
-                            auto u = urn(gen);
-                            auto l0 = m.logL;
-                            auto l1 = m1.logL;
-                            if (u < pow(exp(l1 - l0), m.beta)) {
-                                m = m1;
-                                chains[iic] = m1;
-                                accepted[iic]["death"]++;
-                            }
-                        }
-                    }
-//                else{
-//                    continue;
-//                }
-//                    std::cout << "death:";
-                }
-#endif
                     break;
                 case move::iso_switch:
-#ifdef _RJMCMCFUNC
                     rjmcmc::isoswap(iic, m, d, cov, chains, proposed, accepted, timer);
-#else
-                    {
-//                    boost::timer::auto_cpu_timer tm;
-                    for (int n = 0; n < m.nodes.size(); n++) { // try to switch each node independently
-                        proposed[iic]["iso_switch"]++;
-                        auto m1 = iso_switch(m, n);
-                        if (m1.isInPrior() && m1.isValid()) {
-                            m1.calc_params();
-                            timer.resume();
-                            m1.setLogL(logL(m1, d, cov));
-                            timer.stop();
-                            auto u = urn(gen);
-                            auto l0 = m.logL;
-                            auto l1 = m1.logL;
-                            if (u < pow(exp(l1 - l0), m.beta)) {
-                                m = m1;
-                                chains[iic] = m1;
-                                accepted[iic]["iso_switch"]++;
-                            }
-                        }
-                    }
-//                    std::cout << "perturb: ";
-                }
-#endif
                     break;
             }
             if(m.beta == 1){
