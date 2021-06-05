@@ -983,8 +983,49 @@ namespace gp_utils{
         }
         os.close();
     }
-    void d2hist2disk(boost::histogram::histogram<std::tuple<>,boost::histogram::unlimited_storage<>> const &hist){
 
+    template<class T>
+    void d2hist2disk(T const &hist, std::string const& filename, int const& n_h_bins, bool normalize=false){
+        std::ofstream file;
+        file.open(filename);
+        int line_count{0};
+        if (!normalize){
+            for (auto &&x : boost::histogram::indexed(hist)) {
+                auto x_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower(); // 0 here is the o-th dimension, i.e. x
+                auto y_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower(); // 1 here is the 1-st dimension, i.e. y
+                file << x_hist << " " << y_hist << " " << *x << "\n";
+                line_count++;
+                if (line_count % n_h_bins == 0) {
+                    file << "\n";
+                }
+            }
+        }else{ // here I have to cycle through the histogram twice, the firth time I do compute the integrals, the second time I do write output
+            std::map<int,double> norm;
+            int i{0};
+            line_count = 0;
+            for (auto &&x : boost::histogram::indexed(hist)) {
+                auto length = x.bin(0).upper() - x.bin(0).lower();
+                double width = *x;
+                norm[i]+=(length*width);
+                line_count++;
+                if (line_count % n_h_bins == 0){
+                    i++;
+                }
+            }
+            line_count = 0;
+            i = 0;
+            for (auto &&x : boost::histogram::indexed(hist)) {
+                auto x_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower(); // 0 here is the o-th dimension, i.e. x
+                auto y_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower(); // 1 here is the 1-st dimension, i.e. y
+                file << x_hist << " " << y_hist << " " << *x/norm[i] << "\n";
+                line_count++;
+                if (line_count % n_h_bins == 0) {
+                    ++i;
+                    file << "\n";
+                }
+            }
+        }
+        file.close();
     }
 }
 #endif //MT1DANISMODELPARAMS_OBJECTS_H
