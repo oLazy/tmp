@@ -1,0 +1,1 @@
+add_library(myMtParser Tokenizer.h Tokenizer.cpp Parser.h Parser.cpp)
