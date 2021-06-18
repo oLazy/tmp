@@ -700,6 +700,76 @@ namespace mtobj {
         }
         return c - sum_log_sigma - 0.5 * N;
     }
+/*** ASSUMPTIONS:
+ * the error statistics is normal, all the impedances are affected by the their own error
+ * which is dominated by the noise in the electric channel.
+ * @param m : model
+ * @param d : data
+ * @param cov : covariance
+ * @return : log(likelihood)
+ */
+    double logL(model const &m,
+                std::map<double, MTTensor> const &d,
+                std::map<double, MTTensor> const &cov) {
+
+        static const double f{8}; // 8=4 real and 4 imag parts
+        auto N = d.size() * f;
+        auto c = -N * 0.5 * log(2 * M_PI);
+        double sum_log_sigma{0};
+        double sum_res{0};
+#ifdef _OMP
+        #pragma omp parallel for reduction (+:sum_log_sigma, sum_res)
+        for (int i = 0; i < d.size(); i++) {
+            auto it = d.begin();
+            std::advance(it, i);
+            auto dat = *it;
+#else
+        for (auto dat: d){
+#endif
+            double const T = dat.first;
+            MTTensor const z_meas = dat.second;
+            MTTensor z_pred = m(T);
+            auto const sigma = cov.at(T);
+            sum_log_sigma += 2 * (
+                    log(std::real(sigma.xx)) +
+                    log(std::real(sigma.xy)) +
+                    log(std::real(sigma.yx)) +
+                    log(std::real(sigma.yy))
+                    );
+            sum_res += pow((std::real(z_meas.xx) - std::real(z_pred.xx)) / std::real(sigma.xx), 2);
+            sum_res += pow((std::real(z_meas.xy) - std::real(z_pred.xy)) / std::real(sigma.xy), 2);
+            sum_res += pow((std::real(z_meas.yx) - std::real(z_pred.yx)) / std::real(sigma.yx), 2);
+            sum_res += pow((std::real(z_meas.yy) - std::real(z_pred.yy)) / std::real(sigma.yy), 2);
+            sum_res += pow((std::imag(z_meas.xx) - std::imag(z_pred.xx)) / std::real(sigma.xx), 2);
+            sum_res += pow((std::imag(z_meas.xy) - std::imag(z_pred.xy)) / std::real(sigma.xy), 2);
+            sum_res += pow((std::imag(z_meas.yx) - std::imag(z_pred.yx)) / std::real(sigma.yx), 2);
+            sum_res += pow((std::imag(z_meas.yy) - std::imag(z_pred.yy)) / std::real(sigma.yy), 2);
+        } // end of omp parallel region. Here sum_res and sum_sigma should be reduced
+        return c - sum_log_sigma - 0.5 * sum_res;
+    }
+
+
+    double expectedLogL(
+            std::map<double, MTTensor> const &d,
+            std::map<double, MTTensor> const &cov) { // if the covariance has this form, then use the overwritten function
+        static const double f{8}; // 8=4 real and 4 imag parts
+        auto N = d.size() * f;
+        auto c = -N * 0.5 * log(2 * M_PI);
+        double sum_log_sigma{0};
+        for (auto dat: d) {
+            double const T = dat.first;
+            MTTensor const z_meas = dat.second;
+            auto const sigma = cov.at(T);
+            sum_log_sigma += 2 * (
+                    log(std::real(sigma.xx)) +
+                    log(std::real(sigma.xy)) +
+                    log(std::real(sigma.yx)) +
+                    log(std::real(sigma.yy))
+            );
+        }
+        return c - sum_log_sigma - 0.5 * N;
+    }
+
 
     double varLogL(std::map<double, MTTensor> const &d) {
         static const double f{8}; // 8=4 real and 4 imag parts
