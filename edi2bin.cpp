@@ -105,7 +105,7 @@ int main(int argn, char* argv[]){
                        {conversion_factor*zyyv[i], 0}};
             covariance[T] = vz;
 
-            std::cout << T << ": " << z << "\n";
+            std::cout << T << ": " << z << "\n" << vz <<"\n";
         }
         i++;
     }
@@ -117,15 +117,15 @@ int main(int argn, char* argv[]){
 //    oa << cov_0;
     os.close();
 
-    std::cout << skip_string << "\n";
+    std::cout << "skip string:" << skip_string << "\n";
 
-    for (i = 0; i< zxxv.size();i++) {
-        std::cout << "T: " << std::pow(freq[i],-1) << "\n"
-                  << "std(xx): " << std::sqrt(zxxv[i]) << "\n"
-                  << "std(xy): " << std::sqrt(zxyv[i]) << "\n"
-                  << "std(yx): " << std::sqrt(zyxv[i]) << "\n"
-                  << "std(yy): " << std::sqrt(zyyv[i]) << "\n";
-    }
+//    for (i = 0; i< zxxv.size();i++) {
+//        std::cout << "T: " << std::pow(freq[i],-1) << "\n"
+//                  << "std(xx): " << std::sqrt(zxxv[i]) << "\n"
+//                  << "std(xy): " << std::sqrt(zxyv[i]) << "\n"
+//                  << "std(yx): " << std::sqrt(zyxv[i]) << "\n"
+//                  << "std(yy): " << std::sqrt(zyyv[i]) << "\n";
+//    }
     return 0;
 }
 
