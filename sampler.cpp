@@ -94,7 +94,8 @@ int main(int argn, char* argv[]) {
                  {vm["prior-min-sigma-ratio"].as<double>(),vm["prior-max-sigma-ratio"].as<double>()},
                  {vm["prior-min-beta-strike"].as<double>(),vm["prior-max-beta-strike"].as<double>()},
                  vm["proposal-scale"].as<double>());
-    Cov0 cov;
+//    Cov0 cov;
+    Cov1 cov;
     Dataset d;
     std::ifstream is(base_filename+"_rep.dat");
     boost::archive::text_iarchive ia(is);
