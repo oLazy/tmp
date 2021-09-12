@@ -29,7 +29,7 @@ int main(int argn, char* argv[]){
     std::map<double, MTTensor> dataset; // period, tensor
     std::map<double, MTTensor> covariance; // period, tensor, only real part of tensor is used
     auto fileName = vm["in-path"].as<std::string>();
-    bool change_units = vm["field-units"].as<bool>()
+    bool change_units = vm["field-units"].as<bool>();
     auto pathObject = boost::filesystem::path(fileName);
     auto outPathObject = boost::filesystem::path(vm["out-path"].as<std::string>());
 
