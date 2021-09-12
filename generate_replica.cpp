@@ -92,7 +92,7 @@ int main(int argc, char* argv[]){
         auto ztmp = z0+(sz*z0.maxAbsImpedance()*stdev);
         errorbar.push_back(z0.maxAbsImpedance()*stdev);
         dataset[T] = ztmp;
-        cov_0[T] = z0.maxAbsImpedance()*stdev;
+        cov_0[T] = pow(z0.maxAbsImpedance()*stdev,2); // the variance is the square of the std
         z1.push_back(ztmp);
         nrxx.push_back(std::real(ztmp.xx));
         nrxy.push_back(std::real(ztmp.xy));
