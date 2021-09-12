@@ -15,6 +15,8 @@
 
 std::string getFileContents(std::ifstream&);
 boost::program_options::options_description parse_cmdline(int argc, char *argv[], boost::program_options::variables_map& p_vm);
+typedef std::map<double, MTTensor> cov1; // diagonal covariance matrix which allows different errors for different Z components
+
 
 using namespace MTparser;
 int main(int argn, char* argv[]){
@@ -25,6 +27,7 @@ int main(int argn, char* argv[]){
         return 0;
     }
     std::map<double, MTTensor> dataset; // period, tensor
+    std::map<double, MTTensor> covariance; // period, tensor, only real part of tensor is used
     auto fileName = vm["in-path"].as<std::string>();
     auto pathObject = boost::filesystem::path(fileName);
     auto outPathObject = boost::filesystem::path(vm["out-path"].as<std::string>());
@@ -91,6 +94,12 @@ int main(int argn, char* argv[]){
                        {zyxr[i], zyxi[i]},
                        {zyyr[i], zyyi[i]}};
             dataset[T] = z;
+            MTTensor vz{{zxxv[i], 0},
+                       {zxyv[i], 0},
+                       {zyxv[i], 0},
+                       {zyyv[i], 0}};
+            covariance[T] = vz;
+
             std::cout << T << ": " << z << "\n";
         }
         i++;
@@ -99,7 +108,7 @@ int main(int argn, char* argv[]){
     // save tensors and periods
     std::ofstream os(out_file_name);
     boost::archive::text_oarchive oa(os);
-    oa << dataset;
+    oa << dataset << covariance;
 //    oa << cov_0;
     os.close();
 
