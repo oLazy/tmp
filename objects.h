@@ -671,7 +671,7 @@ namespace mtobj {
             double const T = dat.first;
             MTTensor const z_meas = dat.second;
             MTTensor z_pred = m(T);
-            auto const sigma = cov.at(T);
+            auto const sigma = std::sqrt(cov.at(T));
             sum_log_sigma += f * log(sigma);
             sum_res += pow((std::real(z_meas.xx) - std::real(z_pred.xx)) / sigma, 2);
             sum_res += pow((std::real(z_meas.xy) - std::real(z_pred.xy)) / sigma, 2);
@@ -696,7 +696,7 @@ namespace mtobj {
         for (auto dat: d) {
             double const T = dat.first;
             MTTensor const z_meas = dat.second;
-            auto const sigma = cov.at(T);
+            auto const sigma = std::sqrt(cov.at(T));
             sum_log_sigma += f * log(sigma);
         }
         return c - sum_log_sigma - 0.5 * N;
