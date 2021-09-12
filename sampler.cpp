@@ -97,7 +97,8 @@ int main(int argn, char* argv[]) {
 //    Cov0 cov;
     Cov1 cov;
     Dataset d;
-    std::ifstream is(base_filename+"_rep.dat");
+//    std::ifstream is(base_filename+"_rep.dat");
+    std::ifstream is(base_filename+".bin");
     boost::archive::text_iarchive ia(is);
     ia >> d >> cov;
     is.close();

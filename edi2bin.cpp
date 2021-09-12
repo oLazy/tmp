@@ -29,6 +29,7 @@ int main(int argn, char* argv[]){
     std::map<double, MTTensor> dataset; // period, tensor
     std::map<double, MTTensor> covariance; // period, tensor, only real part of tensor is used
     auto fileName = vm["in-path"].as<std::string>();
+    bool change_units = vm["field-units"].as<bool>()
     auto pathObject = boost::filesystem::path(fileName);
     auto outPathObject = boost::filesystem::path(vm["out-path"].as<std::string>());
 
@@ -69,6 +70,10 @@ int main(int argn, char* argv[]){
     auto zyyv = MTparser::dataset2double(p.get_data_set_for(">ZYY.VAR"), skip_string);
 
     int i = 0;
+    double conversion_factor{1};
+    if(change_units){
+        conversion_factor = 4*M_PI*0.0001;
+    }
     for (auto f:freq){
         bool skip{true};
         auto T = pow(f,-1);
@@ -89,15 +94,15 @@ int main(int argn, char* argv[]){
             }
         }
         if(!skip) {
-            MTTensor z{{zxxr[i], zxxi[i]},
-                       {zxyr[i], zxyi[i]},
-                       {zyxr[i], zyxi[i]},
-                       {zyyr[i], zyyi[i]}};
+            MTTensor z{{conversion_factor*zxxr[i], conversion_factor*zxxi[i]},
+                       {conversion_factor*zxyr[i], conversion_factor*zxyi[i]},
+                       {conversion_factor*zyxr[i], conversion_factor*zyxi[i]},
+                       {conversion_factor*zyyr[i], conversion_factor*zyyi[i]}};
             dataset[T] = z;
-            MTTensor vz{{zxxv[i], 0},
-                       {zxyv[i], 0},
-                       {zyxv[i], 0},
-                       {zyyv[i], 0}};
+            MTTensor vz{{conversion_factor*zxxv[i], 0},
+                       {conversion_factor*zxyv[i], 0},
+                       {conversion_factor*zyxv[i], 0},
+                       {conversion_factor*zyyv[i], 0}};
             covariance[T] = vz;
 
             std::cout << T << ": " << z << "\n";
@@ -136,7 +141,8 @@ boost::program_options::options_description parse_cmdline(int argc, char *argv[]
     generic.add_options()
             ("help,h", "display this message and exit.")
             ("in-path,i", po::value<std::string>(), "PATH to the input .edi file.")
-            ("out-path,o", po::value<std::string>()->default_value("./"), "Where I save .bin file.");
+            ("out-path,o", po::value<std::string>()->default_value("./"), "Where I save .bin file.")
+            ("field-units,u", po::value<bool>()->default_value(false), "Are tensor element in the edi file provided in field units?");
     po::store(po::parse_command_line(argc, argv, generic), p_vm);
     po::notify(p_vm);
     return generic;
