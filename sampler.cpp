@@ -104,8 +104,11 @@ int main(int argn, char* argv[]) {
     is.close();
     // init model zero.
     model m;
-    m.nodes.push_back({0,-3});
+    m.nodes.push_back({0,-1});
     m.nodes.push_back({3000,-3});
+    m.nodes.push_back({15000.,0,-3,0.});
+    m.nodes.push_back({18000.,-3});
+
     model ml_model; // {MAXIMUM LIKELIHOOD MODEL}
     if(!m.isInPrior()){
         std::cerr << "model 0 not in prior\n";

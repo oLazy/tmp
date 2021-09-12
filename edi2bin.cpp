@@ -99,10 +99,10 @@ int main(int argn, char* argv[]){
                        {conversion_factor*zyxr[i], conversion_factor*zyxi[i]},
                        {conversion_factor*zyyr[i], conversion_factor*zyyi[i]}};
             dataset[T] = z;
-            MTTensor vz{{conversion_factor*zxxv[i], 0},
-                       {conversion_factor*zxyv[i], 0},
-                       {conversion_factor*zyxv[i], 0},
-                       {conversion_factor*zyyv[i], 0}};
+            MTTensor vz{{conversion_factor*conversion_factor*zxxv[i], 0},
+                       {conversion_factor*conversion_factor*zxyv[i], 0},
+                       {conversion_factor*conversion_factor*zyxv[i], 0},
+                       {conversion_factor*conversion_factor*zyyv[i], 0}};
             covariance[T] = vz;
 
             std::cout << T << ": " << z << "\n" << vz <<"\n";

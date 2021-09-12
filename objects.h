@@ -730,7 +730,7 @@ namespace mtobj {
             double const T = dat.first;
             MTTensor const z_meas = dat.second;
             MTTensor z_pred = m(T);
-            auto const sigma = cov.at(T);
+            auto const sigma = cov.at(T).dot_sqrt();
             sum_log_sigma += 2 * (
                     log(std::real(sigma.xx)) +
                     log(std::real(sigma.xy)) +
@@ -760,7 +760,7 @@ namespace mtobj {
         for (auto dat: d) {
             double const T = dat.first;
             MTTensor const z_meas = dat.second;
-            auto const sigma = cov.at(T);
+            auto const sigma = cov.at(T).dot_sqrt();
             sum_log_sigma += 2 * (
                     log(std::real(sigma.xx)) +
                     log(std::real(sigma.xy)) +
