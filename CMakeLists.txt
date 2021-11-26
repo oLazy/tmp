@@ -65,6 +65,7 @@ add_executable(MTrgen generate_replica.cpp objects.h MTTensor.cpp)
 add_executable(MTSampler sampler.cpp objects.h MTTensor.cpp)
 add_executable(MTPlotFit pf.cpp objects.h MTTensor.cpp)
 add_executable(edi2bin edi2bin.cpp MTTensor.cpp)
+add_executable(j2bin j2bin.cpp MTTensor.cpp)
 
 
 #target_include_directories(mt1danisModelParams PUBLIC ${Boost_INCLUDE_DIRS})
@@ -75,7 +76,7 @@ target_include_directories(MTrgen PUBLIC ${Boost_INCLUDE_DIRS})
 target_include_directories(MTSampler PUBLIC ${Boost_INCLUDE_DIRS})
 target_include_directories(MTPlotFit PUBLIC ${Boost_INCLUDE_DIRS})
 target_include_directories(edi2bin PUBLIC ${Boost_INCLUDE_DIRS})
-
+target_include_directories(j2bin PUBLIC ${Boost_INCLUDE_DIRS})
 #target_link_libraries(mt1danisModelParams PUBLIC
 #	Boost_iostreams
 #	Boost_system
@@ -123,6 +124,16 @@ target_link_libraries(MTPlotFit PUBLIC
 
 target_link_libraries(edi2bin PUBLIC
 		myMtParser
+		Boost_iostreams
+		Boost_system
+		Boost_serialization
+		Boost_filesystem
+		Boost_timer
+		Boost_chrono
+		Boost_program_options)
+
+target_link_libraries(j2bin PUBLIC
+		myMtJParser
 		Boost_iostreams
 		Boost_system
 		Boost_serialization
