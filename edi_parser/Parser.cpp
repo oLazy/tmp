@@ -4,6 +4,7 @@
 
 #include "Parser.h"
 #include <cmath>
+
 namespace MTparser {
     void Parser::parse(vector<Token> &t){
         for(auto ti = t.begin(); ti != t.end();ti++){

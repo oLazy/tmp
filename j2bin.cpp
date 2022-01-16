@@ -4,8 +4,8 @@
 #include <iostream>
 #include <fstream>
 #include <strstream>
-//#include "edi_parser/Parser.h"
-#include "edi_parser/JTokenizer.h"
+//#include "edi_parser/JTokenizer.h"
+#include "edi_parser/JParser.h"
 #include "MTTensor.h"
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/program_options.hpp>
@@ -49,12 +49,16 @@ int main(int argn, char* argv[]){
     std::string fileContents = getFileContents(is);
 
     is.close();
-    Tokenizer tokenizer;
+//    Tokenizer tokenizer;
 
-    auto tokens = tokenizer.parse(fileContents);
-    for (auto t: tokens){
-        std::cout << t.type << "; " << t.text << "\n";
-    }
+//    auto tokens = tokenizer.parse(fileContents);
+    MTparser::Parser p;
+    p.parse(fileContents);
+    p.printDataBlock();
+
+    //    for (auto t: tokens){
+//        std::cout << t.type << "; " << t.text << "\n";
+//    }
 
 //    Parser p;
 //    p.parse(fileContents);

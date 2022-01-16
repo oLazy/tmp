@@ -13,16 +13,19 @@ namespace MTparser {
     typedef map<string,double> Information_Block;
     typedef map<string,vector<double>> Data_Block;
 
+
     class Parser {
     public:
         void parse(string const&);
+        void printDataBlock();
 
     private:
+        Information_Block informationBlock;
         void parse(vector<Token> &);
         Tokenizer tokenizer;
-
-        void data_block(vector<Token>::iterator &it);
-        string station_name{};
+//
+//        void data_block(vector<Token>::iterator &it);
+//        string station_name{};
     };
 }
 
