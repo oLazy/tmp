@@ -54,89 +54,44 @@ int main(int argn, char* argv[]){
 //    auto tokens = tokenizer.parse(fileContents);
     MTparser::Parser p;
     p.parse(fileContents);
-    p.printDataBlock();
+    p.printInfoBlock();
 
-    //    for (auto t: tokens){
-//        std::cout << t.type << "; " << t.text << "\n";
-//    }
+    // build an impedance tensor from the parsed file
+    Data_Table zxxData = p.getDataFor("ZXX");
+    Data_Table zxyData = p.getDataFor("ZXY");
+    Data_Table zyxData = p.getDataFor("ZYX");
+    Data_Table zyyData = p.getDataFor("ZYY");
+    for (int i=0; i<p.getNfreq(); i++) {
+        double freq;
+        if (
+                zxxData[MTparser::dataMap::period][i] == zxyData[MTparser::dataMap::period][i] &&
+                zxyData[MTparser::dataMap::period][i] == zyxData[MTparser::dataMap::period][i] &&
+                zyxData[MTparser::dataMap::period][i] == zyyData[MTparser::dataMap::period][i]
+                ) {
+            freq = zxxData[MTparser::dataMap::period][i];
+        } else {
+            throw std::runtime_error("freqs difference problem.");
+        }
+        MTTensor z{{zxxData[MTparser::dataMap::real][i], zxxData[MTparser::dataMap::imag][i]}, //xx
+                   {zxyData[MTparser::dataMap::real][i], zxyData[MTparser::dataMap::imag][i]}, //xy
+                   {zyxData[MTparser::dataMap::real][i], zyxData[MTparser::dataMap::imag][i]}, //yx
+                   {zyyData[MTparser::dataMap::real][i], zyyData[MTparser::dataMap::imag][i]}};
 
-//    Parser p;
-//    p.parse(fileContents);
-//    auto skip_string = p.get_option_list_for(">HEAD")["EMPTY"];
-//    auto freq = MTparser::dataset2double(p.get_data_set_for(">FREQ"), skip_string);
-//    // OFF-DIAG
-//    auto zxyr = MTparser::dataset2double(p.get_data_set_for(">ZXYR"), skip_string);
-//    auto zyxr = MTparser::dataset2double(p.get_data_set_for(">ZYXR"), skip_string);
-//    auto zxyi = MTparser::dataset2double(p.get_data_set_for(">ZXYI"), skip_string);
-//    auto zyxi = MTparser::dataset2double(p.get_data_set_for(">ZYXI"), skip_string);
-//    // MAIN-DIAG
-//    auto zxxr = MTparser::dataset2double(p.get_data_set_for(">ZXXR"), skip_string);
-//    auto zyyr = MTparser::dataset2double(p.get_data_set_for(">ZYYR"), skip_string);
-//    auto zxxi = MTparser::dataset2double(p.get_data_set_for(">ZXXI"), skip_string);
-//    auto zyyi = MTparser::dataset2double(p.get_data_set_for(">ZYYI"), skip_string);
-//
-//    auto zxyv = MTparser::dataset2double(p.get_data_set_for(">ZXY.VAR"), skip_string);
-//    auto zyxv = MTparser::dataset2double(p.get_data_set_for(">ZYX.VAR"), skip_string);
-//    auto zxxv = MTparser::dataset2double(p.get_data_set_for(">ZXX.VAR"), skip_string);
-//    auto zyyv = MTparser::dataset2double(p.get_data_set_for(">ZYY.VAR"), skip_string);
-//
-//    int i = 0;
-//    double conversion_factor{1};
-//    if(change_units){
-//        conversion_factor = 4*M_PI*0.0001;
-//    }
-//    for (auto f:freq){
-//        bool skip{true};
-//        auto T = pow(f,-1);
-//        std::array<double,8> thisT {zxxr[i],
-//                                    zxxi[i],
-//                                    zxyr[i],
-//                                    zxyi[i],
-//                                    zyxr[i],
-//                                    zyxi[i],
-//                                    zyyr[i],
-//                                    zyyi[i]};
-//        for (auto e:thisT){
-//            if (std::isnan(e)) {
-//                skip=true;
-//                break;
-//            }else{
-//                skip=false;
-//            }
-//        }
-//        if(!skip) {
-//            MTTensor z{{conversion_factor*zxxr[i], conversion_factor*zxxi[i]},
-//                       {conversion_factor*zxyr[i], conversion_factor*zxyi[i]},
-//                       {conversion_factor*zyxr[i], conversion_factor*zyxi[i]},
-//                       {conversion_factor*zyyr[i], conversion_factor*zyyi[i]}};
-//            dataset[T] = z;
-//            MTTensor vz{{conversion_factor*conversion_factor*zxxv[i], 0},
-//                       {conversion_factor*conversion_factor*zxyv[i], 0},
-//                       {conversion_factor*conversion_factor*zyxv[i], 0},
-//                       {conversion_factor*conversion_factor*zyyv[i], 0}};
-//            covariance[T] = vz;
-//
-//            std::cout << T << ": " << z << "\n" << vz <<"\n";
-//        }
-//        i++;
-//    }
-//
-//    // save tensors and periods
-//    std::ofstream os(out_file_name);
-//    boost::archive::text_oarchive oa(os);
-//    oa << dataset << covariance;
-////    oa << cov_0;
-//    os.close();
-//
-//    std::cout << "skip string:" << skip_string << "\n";
-//
-////    for (i = 0; i< zxxv.size();i++) {
-////        std::cout << "T: " << std::pow(freq[i],-1) << "\n"
-////                  << "std(xx): " << std::sqrt(zxxv[i]) << "\n"
-////                  << "std(xy): " << std::sqrt(zxyv[i]) << "\n"
-////                  << "std(yx): " << std::sqrt(zyxv[i]) << "\n"
-////                  << "std(yy): " << std::sqrt(zyyv[i]) << "\n";
-////    }
+        MTTensor zv{
+            {pow(zxxData[MTparser::dataMap::error][i],2), 0}, //xx
+            {pow(zxyData[MTparser::dataMap::error][i],2), 0}, //xy
+            {pow(zyxData[MTparser::dataMap::error][i],2), 0}, //yx
+            {pow(zyyData[MTparser::dataMap::error][i],2), 0}};
+
+        dataset[freq] = z;
+        covariance[freq] = zv;
+    }
+
+    // save tensors and periods
+    std::ofstream os(out_file_name);
+    boost::archive::text_oarchive oa(os);
+    oa << dataset << covariance;
+    os.close();
     return 0;
 }
 

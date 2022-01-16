@@ -185,7 +185,7 @@ namespace MTparser{
 
     void Tokenizer::endToken(Token &t, vector<Token> &ts) {
         if(t.type == COMMENT){
-            cout << "Ignoring comment: " << t.text << endl;
+//            cout << "Ignoring comment: " << t.text << endl;
         } else if(t.type != WHITESPACE){
             ts.push_back(t);
         }

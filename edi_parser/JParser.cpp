@@ -32,22 +32,28 @@ namespace MTparser {
                         std::cout << "Station Name:" << ti->text << "\n";
                         break;
                     case MTparser::UNSIGNED_INT:
-                        std::cout << "Dataset:" << ti->text << "\n";
+                        auto datasetName = ti->text;
+//                        std::cout << "Dataset:" << datasetName << "\n";
                         bool isAppRho{false};
                         if(ti->text[0]=='R'||ti->text[0]=='r') isAppRho = true;
                         int entries = (isAppRho)? 9: 5;
                         ti++;
                         auto ndata = stoi(ti->text);
-                        std::cout << ti->text +" data present.\n";
+                        if(nfreq==0)nfreq=ndata;
+//                        std::cout << ti->text +" data present.\n";
                         ti++;
                         for (int i=0; i<ndata;i++){
                             for (int j =0; j<entries;j++){
-                                std::cout << ti->text << "; ";
+//                                std::cout << ti->text << "; ";
+                                if (datasetName[0]=='z'||datasetName[0]=='Z') {
+                                    dataBlock[datasetName][j].push_back(stod(ti->text));
+                                }
                                 ti++;
                             }
-                            std::cout << "\n";
+//                            std::cout << "\n";
                         }
-                        std::cout << "\n";
+                        ti--;
+//                        std::cout << "\n";
                         break;
 //                    default:
 //                        std::string lineno;
@@ -60,10 +66,18 @@ namespace MTparser {
         }
     }
 
-    void Parser::printDataBlock() {
+    void Parser::printInfoBlock() {
         for (auto t:informationBlock){
             std::cout << t.first << "=" << t.second << "\n";
         }
+    }
+
+    Data_Table Parser::getDataFor(const string& e) {
+        return dataBlock[e];
+    }
+
+    unsigned Parser::getNfreq() const {
+        return nfreq;
     }
 
 }
