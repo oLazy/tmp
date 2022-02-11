@@ -119,7 +119,6 @@ int generate_configuration_file(boost::program_options::variables_map& p_vm){
         return -1;
     }
 }
-
 int handle_blocking_program_options(int argn, char* argv[]){
 
     // parse command line and config file

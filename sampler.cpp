@@ -10,6 +10,7 @@
 #include <iomanip>
 #include "global.h"
 #include "sampler_options.h"
+#include "sampler_init.h"
 
 typedef std::chrono::high_resolution_clock Clock;
 using namespace mtobj;
@@ -104,12 +105,12 @@ int main(int argn, char* argv[]) {
     m = chains[0]; // t=1
     // log dataset statistics
     ml_model = m;
-    auto el = mtobj::expectedLogL(d, cov);
-    auto sl = mtobj::stdLogL(d);
+    auto expectedLogL = mtobj::expectedLogL(d, cov);
+    auto stdExpectedLogL = mtobj::stdLogL(d);
     std::cout <<
-              "ELog(L): " << mtobj::expectedLogL(d, cov) <<
+              "ELog(L): " << expectedLogL <<
               "\nLog[L(m0)]: " << mtobj::logL(m, d, cov) <<
-              "\nstd(ELogL): " << mtobj::stdLogL(d) <<
+              "\nstd(ELogL): " << stdExpectedLogL <<
               "\nvar(ELogL): " << mtobj::varLogL(d) << "\n";
 
     // create histogram
@@ -146,7 +147,7 @@ int main(int argn, char* argv[]) {
     auto h_betaStrike1 = boost::histogram::make_histogram(bs_ax1,bs_ax2);
     auto h_betaStrike2 = boost::histogram::make_histogram(bs_ax1,bs_ax2);
 
-    auto logl_ax = boost::histogram::axis::regular<>(101,el-7*sl,el+7*sl,"logL");
+    auto logl_ax = boost::histogram::axis::regular<>(101, expectedLogL - 7 * stdExpectedLogL, expectedLogL + 7 * stdExpectedLogL, "logL");
     auto hll = boost::histogram::make_histogram(logl_ax);
     auto hll1 = boost::histogram::make_histogram(logl_ax);
     auto hll2 = boost::histogram::make_histogram(logl_ax);
@@ -332,7 +333,7 @@ int main(int argn, char* argv[]) {
 
         if(status==SamplerStatus::burn_in) {    // if I am in burn-in, check if burn-in is over
             for (auto iic = 0; iic < chains.size(); iic++) {
-                if (isLogLhoodExpected(chains[iic].logL, el, sl, chains[iic].beta, 1)) {
+                if (isLogLhoodExpected(chains[iic].logL, expectedLogL, stdExpectedLogL, chains[iic].beta, 1)) {
                     status = SamplerStatus::sampling;
                 } else {
                     status = SamplerStatus::burn_in;
