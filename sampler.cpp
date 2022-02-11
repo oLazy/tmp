@@ -52,6 +52,7 @@ int main(int argn, char* argv[]) {
 //
     SamplerStatus status{SamplerStatus::burn_in}; // begin from random walk optimization
     std::cout << base_filename << std::endl;
+    std::cout << "Data-file test: " << boost::filesystem::is_regular_file(base_filename+"_rep.dat") << "\n";
     const int max_interfaces{vm["n-interface-max"].as<int>()};
     const int n_sigma_bins{vm["n-sigma-bins"].as<int>()};
     const int n_z_bins{vm["n-z-bins"].as<int>()};
@@ -94,21 +95,33 @@ int main(int argn, char* argv[]) {
                  {vm["prior-min-sigma-ratio"].as<double>(),vm["prior-max-sigma-ratio"].as<double>()},
                  {vm["prior-min-beta-strike"].as<double>(),vm["prior-max-beta-strike"].as<double>()},
                  vm["proposal-scale"].as<double>());
-//    Cov0 cov;
-    Cov1 cov;
-    Dataset d;
-//    std::ifstream is(base_filename+"_rep.dat");
-    std::ifstream is(base_filename+".bin");
-    boost::archive::text_iarchive ia(is);
-    ia >> d >> cov;
-    is.close();
-    // init model zero.
-    model m;
-    m.nodes.push_back({0,-1});
-    m.nodes.push_back({3000,-3});
-    m.nodes.push_back({15000.,0,-3,0.});
-    m.nodes.push_back({18000.,-3});
 
+
+    auto readData = io::loadDataset(base_filename+"_rep.dat");
+
+    Cov0 cov = readData.c0;
+//    Cov1 cov;
+    Dataset d = readData.d;
+
+//    std::ifstream is(base_filename+"_rep.dat");
+    //std::ifstream is(base_filename+".bin");
+    //boost::archive::binary_iarchive ia(is);
+    //ia >> d >> cov;
+    //is.close();
+    // init model zero.
+
+    model m;
+
+
+    m.nodes.push_back({0,-1});
+//    m.nodes.push_back({3000,-3});
+//    m.nodes.push_back({15000.,0,-3,0.});
+//    m.nodes.push_back({18000.,-3});
+
+
+//    model test_load = io::load("/home/eric/Projects/sampler/tmp/input_folder/cg_model_1.bin");
+//    std::cout << test_load << "\n";
+//    return 0;
     model ml_model; // {MAXIMUM LIKELIHOOD MODEL}
     if(!m.isInPrior()){
         std::cerr << "model 0 not in prior\n";
@@ -503,6 +516,8 @@ boost::program_options::options_description parse_config(boost::program_options:
             ("iso-switch", po::value<double>(), "Probability weight for isotropy/anisotropy switch swap move.")
             // Filenames
             ("base-filename", po::value<std::string>(), "Base input/output file name (with path).")
+//            ("model-filename", po::value<std::string>(), "Initial model input file name (with path).")
+//            ("data-filename", po::value<std::string>(), "Base input/output file name (with path).")
         // initial model
 
             ;

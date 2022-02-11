@@ -11,6 +11,7 @@
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
 #include <boost/serialization/map.hpp>
 #include <cmath>
 
@@ -89,7 +90,7 @@ int main(int argn, char* argv[]){
 
     // save tensors and periods
     std::ofstream os(out_file_name);
-    boost::archive::text_oarchive oa(os);
+    boost::archive::binary_oarchive oa(os);
     oa << dataset << covariance;
     os.close();
     return 0;

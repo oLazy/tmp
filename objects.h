@@ -7,6 +7,8 @@
 #include <iostream>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
 #include <map>
 #include <boost/serialization/map.hpp>
 #include <vector>
@@ -22,6 +24,8 @@
 #include <boost/program_options.hpp>
 #include <boost/math/special_functions/gamma.hpp>
 #include <boost/circular_buffer.hpp>
+#include <boost/filesystem/convenience.hpp>
+//#include <boost/archive/archive_exception.hpp>
 #ifdef _OMP
 #include <omp.h>
 #endif
@@ -57,6 +61,7 @@ namespace mtobj {
             return "Model out prior";
         }
     };
+
 /**
  * @brief rotate complex impedance tensor around the z axis
  * @param za input impedance tensor
@@ -99,6 +104,7 @@ namespace mtobj {
                                          {3, "beta"}};
     typedef std::map<int, std::pair<double, double> > Prior;
     std::map<int, std::pair<double, double> > prior;
+
 /// Initialize MT uniform prior
 /// \param depth limits for depth
 /// \param mean limits for \f$\bar{\sigma}\f$ (log space)
@@ -126,19 +132,19 @@ namespace mtobj {
         proposal[paramType::beta] = (beta.second - beta.first) / scale;
     }
 
-    bool isLogLhoodExpected(double logL, double ElogL, double logLStd, double beta, int nStd=3){
-        auto semi_interval = (double)nStd*pow(beta,-1)*logLStd;
-        if( ElogL-semi_interval <= logL)return true; // only check for lower bound
+    bool isLogLhoodExpected(double logL, double ElogL, double logLStd, double beta, int nStd = 3) {
+        auto semi_interval = (double) nStd * pow(beta, -1) * logLStd;
+        if (ElogL - semi_interval <= logL)return true; // only check for lower bound
         return false;
     }
 
-    std::tuple<double, double, double, double> balanceReceiptWeights(boost::program_options::variables_map& vm_p){
+    std::tuple<double, double, double, double> balanceReceiptWeights(boost::program_options::variables_map &vm_p) {
         auto pp = vm_p["perturb"].as<double>();
         auto pb = vm_p["birth"].as<double>();
         auto pd = vm_p["death"].as<double>();
         auto ps = vm_p["iso-switch"].as<double>();
-        auto sum{pp+pb+pd+ps};
-        return std::make_tuple(pp/sum,pb/sum,pd/sum,ps/sum);
+        auto sum{pp + pb + pd + ps};
+        return std::make_tuple(pp / sum, pb / sum, pd / sum, ps / sum);
     }
 
     class Parameter {
@@ -295,7 +301,7 @@ namespace mtobj {
         model() = default;
 
         model(const model &m) {
-            for (const auto &n:m.nodes) {
+            for (const auto &n: m.nodes) {
                 this->nodes.push_back(n);
             }
             this->logL = m.logL;
@@ -339,7 +345,7 @@ namespace mtobj {
 
         bool isValid() {
             std::vector<double> z;
-            for (auto n : nodes) {
+            for (auto n: nodes) {
                 z.push_back(n.params[paramType::depth].getValue());
             }
             std::vector<double> diff(z.size());
@@ -512,7 +518,7 @@ namespace mtobj {
 
         friend std::ostream &operator<<(std::ostream &os, const model &model) {
             int node_id = 0;
-            for (auto n : model.nodes) {
+            for (auto n: model.nodes) {
                 for (int pt = paramType::begin; pt != paramType::end; pt++) {
                     os << "[" << node_id << "]" << param_map[pt] << ":" << n.params[pt] << "\n";
                 }
@@ -549,7 +555,7 @@ namespace mtobj {
         auto nn = r_node(gen);
         model res;
         int i{0};
-        for (auto n:m0.nodes) {
+        for (auto n: m0.nodes) {
             if (i != nn) res.nodes.push_back(n); // copy only "live" nodes
             i++;
         }
@@ -619,20 +625,20 @@ namespace mtobj {
         return mp;
     }
 
-    void parallel_tempering_swap(std::vector<model> &chains){
+    void parallel_tempering_swap(std::vector<model> &chains) {
         auto n_chains = chains.size();
-        boost::random::uniform_int_distribution<int> chain_picker(0,n_chains-1);
-        for (auto i = 0; i < n_chains * n_chains; i++){ // propose n^2 switches
+        boost::random::uniform_int_distribution<int> chain_picker(0, n_chains - 1);
+        for (auto i = 0; i < n_chains * n_chains; i++) { // propose n^2 switches
             int j = chain_picker(gen);
             int k = chain_picker(gen);
-            if(j!=k){
+            if (j != k) {
                 auto bj = chains[j].beta;
                 auto bk = chains[k].beta;
-                if(urn(gen) <  pow(exp(chains[j].logL - chains[k].logL),(bk-bj))){
+                if (urn(gen) < pow(exp(chains[j].logL - chains[k].logL), (bk - bj))) {
                     // std::cerr << "swapping chain no. " << j << " with chain no. " << k <<"\n";
                     chains[j].setBeta(bk);
                     chains[k].setBeta(bj);
-                    std::swap(chains[j],chains[k]); // i-th temperature remains associated to the i-th chain
+                    std::swap(chains[j], chains[k]); // i-th temperature remains associated to the i-th chain
                 }
             }
         }
@@ -666,7 +672,7 @@ namespace mtobj {
             std::advance(it, i);
             auto dat = *it;
 #else
-        for (auto dat: d){
+        for (auto dat: d) {
 #endif
             double const T = dat.first;
             MTTensor const z_meas = dat.second;
@@ -701,6 +707,7 @@ namespace mtobj {
         }
         return c - sum_log_sigma - 0.5 * N;
     }
+
 /*** ASSUMPTIONS:
  * the error statistics is normal, all the impedances are affected by the their own error
  * which is dominated by the noise in the electric channel.
@@ -725,7 +732,7 @@ namespace mtobj {
             std::advance(it, i);
             auto dat = *it;
 #else
-        for (auto dat: d){
+        for (auto dat: d) {
 #endif
             double const T = dat.first;
             MTTensor const z_meas = dat.second;
@@ -736,7 +743,7 @@ namespace mtobj {
                     log(std::real(sigma.xy)) +
                     log(std::real(sigma.yx)) +
                     log(std::real(sigma.yy))
-                    );
+            );
             sum_res += pow((std::real(z_meas.xx) - std::real(z_pred.xx)) / std::real(sigma.xx), 2);
             sum_res += pow((std::real(z_meas.xy) - std::real(z_pred.xy)) / std::real(sigma.xy), 2);
             sum_res += pow((std::real(z_meas.yx) - std::real(z_pred.yx)) / std::real(sigma.yx), 2);
@@ -784,7 +791,8 @@ namespace mtobj {
         return sqrt(2 * N);
     }
 
-    void calc_beta(int n_temp, double max_temp, model &m, std::vector<model> &chains, bool printSchedule=false) { // make tempering schedule
+    void calc_beta(int n_temp, double max_temp, model &m, std::vector<model> &chains,
+                   bool printSchedule = false) { // make tempering schedule
         double length = log10(max_temp);
         double delta = length / static_cast<double>(n_temp - 1);
         for (int i = -1; i < n_temp; i++) {
@@ -795,16 +803,168 @@ namespace mtobj {
                 temperature = pow(10, static_cast<double>(i) * delta);
             }
             double beta = pow(temperature, -1);
-            if(printSchedule) {
+            if (printSchedule) {
                 std::cout << "t[" << i << "]: " << temperature << "\n";
             }
             m.setBeta(beta);
             chains.push_back(m);
         }
     }
+
+    namespace io {
+        enum class cov_code {
+            real, tensor, null
+        };
+        enum ext_code {
+            bin, dat, null
+        };
+
+        ext_code hashit(std::string const &ins) {
+            if (ins == ".bin") return ext_code::bin;
+            if (ins == ".dat") return ext_code::dat;
+            return ext_code::null;
+        }
+
+        struct dataset {
+            Dataset d;
+            Cov0 c0;
+            Cov1 c1;
+            cov_code cov_type{cov_code::null};
+        };
+
+        model load(std::string const &fileName) {
+            std::ifstream is(fileName);
+            model result;
+            std::string extension = boost::filesystem::extension(fileName);
+            switch (hashit(extension)) {
+                case bin: {
+                    boost::archive::binary_iarchive ia(is);
+                    ia >> result;
+                    break;
+                }
+                case dat: {
+                    boost::archive::text_iarchive ia(is);
+                    ia >> result;
+                    break;
+                }
+                default:
+                    throw std::runtime_error("Unknown extension type for input file " + fileName);
+            }
+            return result;
+        }
+
+        void save(model const &m, std::string const &fileName) {
+            std::ofstream os(fileName);
+            std::string extension = boost::filesystem::extension(fileName);
+            switch (hashit(extension)) {
+                case bin: {
+                    boost::archive::binary_oarchive oa(os);
+                    oa << m;
+                    break;
+                }
+                case dat: {
+                    boost::archive::text_oarchive oa(os);
+                    oa << m;
+                    break;
+                }
+                default:
+                    throw std::runtime_error("Unknown extension type for output file " + fileName);
+            }
+        }
+
+        dataset loadDataset(std::string const &fileName) {
+
+            dataset result;
+            Dataset d;
+            Cov0 c0;
+            std::ifstream is(fileName);
+            std::cout << "this is the actual file name: " << fileName << "\n";
+
+            std::string extension = boost::filesystem::extension(fileName);
+            switch (hashit(extension)) {
+                case bin: {
+                    boost::archive::binary_iarchive ia(is);
+                    ia >> result.d;
+                    ia >> result.c0;
+                    break;
+                }
+                case dat: {
+                    boost::archive::text_iarchive ia(is);
+                    ia >> result.d;
+                    ia >> result.c0;
+                    break;
+                }
+                default:
+                    throw std::runtime_error("Unknown extension type for input file " + fileName);
+            }
+            return result;
+//            Cov1 c1;
+
+//            std::string extension = boost::filesystem::extension(fileName);
+//            switch (hashit(extension)) {
+//                case bin:
+//                {
+//                try{
+//                    std::ifstream is(fileName);
+//                    boost::archive::binary_iarchive ia(is);
+//                    ia >> d;
+//                    ia >> c0;
+//                    result.c0 = c0;
+//                    result.d = d;
+//                    result.cov_type = cov_code::real;
+//                    return result;
+//                }
+//                catch (boost::archive::archive_exception &e){
+//                    if(e.code==boost::archive::archive_exception::input_stream_error){
+//                    std::ifstream is(fileName);
+//                    boost::archive::binary_iarchive ia(is);
+//                    ia >> d;
+//                    ia >> c1;
+//                    result.c1 = c1;
+//                    result.d = d;
+//                    result.cov_type = cov_code::tensor;
+//                    return result;}else{
+//                        throw e;}
+//                }
+//                }
+//                    break;
+//
+//                case dat:
+//                {boost::archive::text_iarchive ia(is);
+//                    ia >> result;
+//                    break;}
+//                default:
+//                    throw std::runtime_error("Unknown extension type for input file "+ fileName);
+//            }
+//            return result;
+//        }
+        }
+        void saveDataset(std::string const &fileName, dataset const &d) {
+            std::ofstream os(fileName);
+
+            std::string extension = boost::filesystem::extension(fileName);
+            switch (hashit(extension)) {
+                case bin: {
+                    boost::archive::binary_oarchive oa(os);
+                    oa << d.d;
+                    oa << d.c0;
+                    break;
+                }
+                case dat: {
+                    boost::archive::text_oarchive oa(os);
+                    oa << d.d;
+                    oa << d.c0;
+                    break;
+                }
+                default:
+                    throw std::runtime_error("Unknown extension type for output file " + fileName);
+            }
+        }
+
+
+    }
     typedef boost::circular_buffer<model> Buffer;
 }
-
 namespace rjmcmc {
     void isoswap(int const ichain,
                  mtobj::model &model,
@@ -875,54 +1035,54 @@ namespace rjmcmc {
                std::vector<std::map<std::string, unsigned long>> &proposed,
                std::vector<std::map<std::string, unsigned long>> &accepted,
                boost::timer::cpu_timer &timer){
-            proposed[ichain]["birth"]++;
-            if (model.nodes.size() < max_interfaces) {
-                auto m1 = mtobj::birth(model, mtobj::birthType::any);
-                if (m1.isInPrior()) {
-                    m1.calc_params();
-                    timer.resume();
-                    m1.setLogL(logL(m1, d, cov));
-                    timer.stop();
-                    auto u = urn(gen);
-                    auto l0 = model.logL;
-                    auto l1 = m1.logL;
-                    if (u < pow(exp(l1 - l0), model.beta)) {
-                        model = m1;
-                        chains[ichain] = m1;
-                        accepted[ichain]["birth"]++;
-                    }
-                }
-
-            }
-        }
-
-        void death(int const ichain,
-                   mtobj::model &model,
-                   mtobj::Dataset const &d,
-                   mtobj::Cov0 const &cov,
-                   std::vector<mtobj::model> &chains,
-                   std::vector<std::map<std::string, unsigned long>> &proposed,
-                   std::vector<std::map<std::string, unsigned long>> &accepted,
-                   boost::timer::cpu_timer &timer){
-            proposed[ichain]["death"]++;
-            if (model.nodes.size() > 1) {
-                auto m1 = mtobj::death(model);
-                if (m1.isInPrior()) {
-                    m1.calc_params();
-                    timer.resume();
-                    m1.setLogL(logL(m1, d, cov));
-                    timer.stop();
-                    auto u = urn(gen);
-                    auto l0 = model.logL;
-                    auto l1 = m1.logL;
-                    if (u < pow(exp(l1 - l0), model.beta)) {
-                        model = m1;
-                        chains[ichain] = m1;
-                        accepted[ichain]["death"]++;
-                    }
+        proposed[ichain]["birth"]++;
+        if (model.nodes.size() < max_interfaces) {
+            auto m1 = mtobj::birth(model, mtobj::birthType::any);
+            if (m1.isInPrior()) {
+                m1.calc_params();
+                timer.resume();
+                m1.setLogL(logL(m1, d, cov));
+                timer.stop();
+                auto u = urn(gen);
+                auto l0 = model.logL;
+                auto l1 = m1.logL;
+                if (u < pow(exp(l1 - l0), model.beta)) {
+                    model = m1;
+                    chains[ichain] = m1;
+                    accepted[ichain]["birth"]++;
                 }
             }
+
         }
+    }
+
+    void death(int const ichain,
+               mtobj::model &model,
+               mtobj::Dataset const &d,
+               mtobj::Cov0 const &cov,
+               std::vector<mtobj::model> &chains,
+               std::vector<std::map<std::string, unsigned long>> &proposed,
+               std::vector<std::map<std::string, unsigned long>> &accepted,
+               boost::timer::cpu_timer &timer){
+        proposed[ichain]["death"]++;
+        if (model.nodes.size() > 1) {
+            auto m1 = mtobj::death(model);
+            if (m1.isInPrior()) {
+                m1.calc_params();
+                timer.resume();
+                m1.setLogL(logL(m1, d, cov));
+                timer.stop();
+                auto u = urn(gen);
+                auto l0 = model.logL;
+                auto l1 = m1.logL;
+                if (u < pow(exp(l1 - l0), model.beta)) {
+                    model = m1;
+                    chains[ichain] = m1;
+                    accepted[ichain]["death"]++;
+                }
+            }
+        }
+    }
 
     void isoswap(int const ichain,
                  mtobj::model &model,
@@ -1173,39 +1333,43 @@ namespace gp_utils{
     }
 
     template<class T>
-    void d2hist2disk(T const &hist, std::string const& filename, int const& n_h_bins, bool normalize=false){
+    void d2hist2disk(T const &hist, std::string const& filename, int const& n_h_bins, bool normalize=false) {
         std::ofstream file;
         file.open(filename);
         int line_count{0};
-        if (!normalize){
-            for (auto &&x : boost::histogram::indexed(hist)) {
-                auto x_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower(); // 0 here is the o-th dimension, i.e. x
-                auto y_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower(); // 1 here is the 1-st dimension, i.e. y
+        if (!normalize) {
+            for (auto &&x: boost::histogram::indexed(hist)) {
+                auto x_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 +
+                              x.bin(0).lower(); // 0 here is the o-th dimension, i.e. x
+                auto y_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 +
+                              x.bin(1).lower(); // 1 here is the 1-st dimension, i.e. y
                 file << x_hist << " " << y_hist << " " << *x << "\n";
                 line_count++;
                 if (line_count % n_h_bins == 0) {
                     file << "\n";
                 }
             }
-        }else{ // here I have to cycle through the histogram twice, the firth time I do compute the integrals, the second time I do write output
-            std::map<int,double> norm;
+        } else { // here I have to cycle through the histogram twice, the firth time I do compute the integrals, the second time I do write output
+            std::map<int, double> norm;
             int i{0};
             line_count = 0;
-            for (auto &&x : boost::histogram::indexed(hist)) {
+            for (auto &&x: boost::histogram::indexed(hist)) {
                 auto length = x.bin(0).upper() - x.bin(0).lower();
                 double width = *x;
-                norm[i]+=(length*width);
+                norm[i] += (length * width);
                 line_count++;
-                if (line_count % n_h_bins == 0){
+                if (line_count % n_h_bins == 0) {
                     i++;
                 }
             }
             line_count = 0;
             i = 0;
-            for (auto &&x : boost::histogram::indexed(hist)) {
-                auto x_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 + x.bin(0).lower(); // 0 here is the o-th dimension, i.e. x
-                auto y_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 + x.bin(1).lower(); // 1 here is the 1-st dimension, i.e. y
-                file << x_hist << " " << y_hist << " " << *x/norm[i] << "\n";
+            for (auto &&x: boost::histogram::indexed(hist)) {
+                auto x_hist = (x.bin(0).upper() - x.bin(0).lower()) * 0.5 +
+                              x.bin(0).lower(); // 0 here is the o-th dimension, i.e. x
+                auto y_hist = (x.bin(1).upper() - x.bin(1).lower()) * 0.5 +
+                              x.bin(1).lower(); // 1 here is the 1-st dimension, i.e. y
+                file << x_hist << " " << y_hist << " " << *x / norm[i] << "\n";
                 line_count++;
                 if (line_count % n_h_bins == 0) {
                     ++i;
