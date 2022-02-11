@@ -1211,6 +1211,7 @@ namespace cvt { // convergence tools
      publisher={Cambridge Univ. P.},
      pages={471-472}}
      */
+    constexpr double epsilon{1e-15};
     enum chi2twoBinsResults {
         dof = 0, significance = 1, chi2 = 2
     };
@@ -1287,7 +1288,7 @@ namespace cvt { // convergence tools
         }
         auto D_a = c_alpha.at(sig) * std::sqrt(static_cast<double>(m + n) / static_cast<double>(n * m));
         auto D = ks2sample_stat(v1, v2);
-
+        if (D < epsilon) return true; // numerical guard for small values
         if (D > D_a) {
 //            std::cerr << "m: " << m << "; n: " << n << "; c: " << c_alpha.at(sig) << "; D: " << D << "; D_a:" << D_a << "\n";
             return false;
