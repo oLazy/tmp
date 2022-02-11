@@ -5,12 +5,9 @@
 #include <string>
 #include <chrono>
 #include <boost/timer/timer.hpp>
-#include <boost/tuple/tuple.hpp>
-#include <boost/circular_buffer.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <iomanip>
-//#include <boost/program_options.hpp>
 #include "global.h"
 #include "sampler_options.h"
 
@@ -19,9 +16,6 @@ using namespace mtobj;
 enum class move{perturb,birth,death,iso_switch};
 enum class Target{sample1, sample2, none};
 enum class SamplerStatus{burn_in, sampling, convergence};
-//boost::program_options::options_description parse_cmdline(int argc, char *argv[], boost::program_options::variables_map& p_vm);
-//boost::program_options::options_description parse_config(boost::program_options::variables_map& p_vm);
-int generate_configuration_file(boost::program_options::variables_map& p_vm);
 
 #define _RJMCMCFUNC
 
