@@ -63,8 +63,8 @@ boost::program_options::options_description parse_config(boost::program_options:
             ("iso-switch", po::value<double>(), "Probability weight for isotropy/anisotropy switch swap move.")
             // Filenames
             ("base-filename", po::value<std::string>(), "Base input/output file name (with path).")
-//            ("model-filename", po::value<std::string>(), "Initial model input file name (with path).")
-//            ("data-filename", po::value<std::string>(), "Base input/output file name (with path).")
+            ("m0-filename", po::value<std::string>(), "Initial model input file name (with path).")
+            ("data-filename", po::value<std::string>(), "Data file name (with path).")
         // initial model
 
             ;
@@ -111,9 +111,28 @@ int generate_configuration_file(boost::program_options::variables_map& p_vm){
         os << "iso-switch=0.1" << "\n";
         // File names
         os << "base-filename=test\n";
+        os << "m0-filename=test.bin\n";
+        os << "data-filename=test_rep.bin\n";
+
         return 0;}
     catch (...){
         return -1;
+    }
+}
+
+int handle_blocking_program_options(int argn, char* argv[]){
+
+    // parse command line and config file
+    auto desc = parse_cmdline(argn, argv, vm);
+    auto config_desc = parse_config(vm);
+    if(vm.count("help")){
+        std::cout << desc <<std::endl;
+        std::cout << config_desc << std::endl;
+        return 0;
+    }
+    auto isBuildingConfig = vm["init-config"].as<bool>();
+    if(isBuildingConfig) {
+        return generate_configuration_file(vm);
     }
 }
 #endif //MT1DANISMODELPARAMS_SAMPLER_OPTIONS_H

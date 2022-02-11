@@ -21,18 +21,7 @@ enum class SamplerStatus{burn_in, sampling, convergence};
 
 int main(int argn, char* argv[]) {
 
-    // parse command line and config file
-    auto desc = parse_cmdline(argn, argv, vm);
-    auto config_desc = parse_config(vm);
-    if(vm.count("help")){
-        std::cout << desc <<std::endl;
-        std::cout << config_desc << std::endl;
-        return 0;
-    }
-    auto isBuildingConfig = vm["init-config"].as<bool>();
-    if(isBuildingConfig) {
-        return generate_configuration_file(vm);
-    }
+    if (!handle_blocking_program_options(argn, argv))return 0;
     std::string base_filename{vm["base-filename"].as<std::string>().c_str()};
 
 //                      ▄▄                                         ▄▄
@@ -97,26 +86,11 @@ int main(int argn, char* argv[]) {
     Cov0 cov = readData.c0;
 //    Cov1 cov;
     Dataset d = readData.d;
-
-//    std::ifstream is(base_filename+"_rep.dat");
-    //std::ifstream is(base_filename+".bin");
-    //boost::archive::binary_iarchive ia(is);
-    //ia >> d >> cov;
-    //is.close();
-    // init model zero.
-
     model m;
 
 
+
     m.nodes.push_back({0,-1});
-//    m.nodes.push_back({3000,-3});
-//    m.nodes.push_back({15000.,0,-3,0.});
-//    m.nodes.push_back({18000.,-3});
-
-
-//    model test_load = io::load("/home/eric/Projects/sampler/tmp/input_folder/cg_model_1.bin");
-//    std::cout << test_load << "\n";
-//    return 0;
     model ml_model; // {MAXIMUM LIKELIHOOD MODEL}
     if(!m.isInPrior()){
         std::cerr << "model 0 not in prior\n";
