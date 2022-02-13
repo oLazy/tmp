@@ -645,9 +645,7 @@ namespace mtobj {
     }
 
 
-//    model isoJump(model const &m0, int node_id){
-//
-//    }
+
 /*** ASSUMPTIONS:
  * the error statistics is normal, all the impedances are affected by the same error
  * which is dominated by the noise in the electric channel.
@@ -657,8 +655,8 @@ namespace mtobj {
  * @return : log(likelihood)
  */
     double logL(model const &m,
-                std::map<double, MTTensor> const &d,
-                std::map<double, double> const &cov) {
+                Dataset const &d,
+                Cov0 const &cov) {
 
         static const double f{8}; // 8=4 real and 4 imag parts
         auto N = d.size() * f;
@@ -693,8 +691,8 @@ namespace mtobj {
 
 
     double expectedLogL(
-            std::map<double, MTTensor> const &d,
-            std::map<double, double> const &cov) {
+            Dataset const &d,
+            Cov0 const &cov) {
         static const double f{8}; // 8=4 real and 4 imag parts
         auto N = d.size() * f;
         auto c = -N * 0.5 * log(2 * M_PI);
@@ -717,8 +715,8 @@ namespace mtobj {
  * @return : log(likelihood)
  */
     double logL(model const &m,
-                std::map<double, MTTensor> const &d,
-                std::map<double, MTTensor> const &cov) {
+                Dataset const &d,
+                Cov1 const &cov) {
 
         static const double f{8}; // 8=4 real and 4 imag parts
         auto N = d.size() * f;
@@ -758,8 +756,8 @@ namespace mtobj {
 
 
     double expectedLogL(
-            std::map<double, MTTensor> const &d,
-            std::map<double, MTTensor> const &cov) { // if the covariance has this form, then use the overwritten function
+            Dataset const &d,
+            Cov1 const &cov) { // if the covariance has this form, then use the overwritten function
         static const double f{8}; // 8=4 real and 4 imag parts
         auto N = d.size() * f;
         auto c = -N * 0.5 * log(2 * M_PI);
@@ -779,13 +777,13 @@ namespace mtobj {
     }
 
 
-    double varLogL(std::map<double, MTTensor> const &d) {
+    double varLogL(Dataset const &d) {
         static const double f{8}; // 8=4 real and 4 imag parts
         auto N = d.size() * f;
         return 2 * N;
     }
 
-    double stdLogL(std::map<double, MTTensor> const &d) {
+    double stdLogL(Dataset const &d) {
         static const double f{8}; // 8=4 real and 4 imag parts
         auto N = d.size() * f;
         return sqrt(2 * N);

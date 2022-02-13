@@ -60,7 +60,7 @@ int main(int argc, char* argv[]){
     std::vector<double> nixx, nixy, niyx, niyy;
     std::vector<double> errorbar;
     std::map<double, MTTensor> dataset; // period, tensor
-    std::map<double, double> cov_0; // period, variance
+    mtobj::Cov0 cov_0; // period, variance
 
     auto iTmax = vm["n_T"].as<int>();
     double Tmin, Tmax;

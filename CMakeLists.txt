@@ -53,6 +53,7 @@ if (OpenMP_CXX_FOUND)
 	#	add_definitions(-D_OMP=1)
 endif()
 add_subdirectory(edi_parser)
+add_subdirectory(Boost_tests)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer")
 #set(GCC_COVERAGE_COMPILE_FLAGS "-O3")
