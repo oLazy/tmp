@@ -358,6 +358,33 @@ namespace mtobj {
             model::beta = beta;
         }
 
+        std::vector<bool> to_bin() const {
+            std::vector<bool> result;
+            for (auto n=nodes.begin(); n!=nodes.end(); n++){
+                (n->params.at(paramType::sigmaRatio).isActive())?result.push_back(true) : result.push_back(false);
+            }
+//            std::cerr << "exit to_bin()\n";
+            return result;
+        }
+        unsigned int bin2dec() const {
+            unsigned int result{0};
+            unsigned int digit{0};
+            auto bin_str = this->to_bin();
+            for (auto dig = bin_str.rbegin(); dig!=bin_str.rend(); dig++){
+                unsigned int contr = (*dig)?1:0; // if this digit is true add 2^1, else add 2^0
+                result+=contr * pow(2,digit);
+                digit++;
+            }
+            return result;
+        }
+        unsigned int calcK() const {
+            unsigned int result{0};
+            for (auto i = 0; i<nodes.size();i++){
+                result+=pow(2,i);
+            }
+            return result+bin2dec();
+        }
+
         bool isValid() {
             std::vector<double> z;
             for (auto n: nodes) {
