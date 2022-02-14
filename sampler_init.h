@@ -19,8 +19,10 @@ void init_sampler(boost::program_options::variables_map const& input){
     }
     if( !boost::filesystem::exists(dfile))throw std::runtime_error(dfile + " file not found.");
     auto readData = mtobj::io::loadDataset(dfile);
-    if(readData.cov_type!=mtobj::io::cov_code::real)throw std::runtime_error("covariance type not implemented yet");
-    auto cov0=readData.c0;
+
+//    if(readData.cov_type!=mtobj::io::cov_code::real)throw std::runtime_error("covariance type not implemented yet");
+// implementing only the Cov1 case
+    mtobj::Cov1 cov = (readData.cov_type==mtobj::io::cov_code::real)? mtobj::initFrom(readData.c0) : readData.c1;
     auto d=readData.d;
 
     // load model
@@ -41,6 +43,6 @@ void init_sampler(boost::program_options::variables_map const& input){
     }
     m.calc_params();
     if(!m.isInPrior())throw std::runtime_error("initial model not in prior.\n");
-    m.setLogL(mtobj::logL(m, d, cov0));
+    m.setLogL(mtobj::logL(m, d, cov));
 }
 #endif //MT1DANISMODELPARAMS_SAMPLER_INIT_H

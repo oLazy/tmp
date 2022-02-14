@@ -898,18 +898,19 @@ namespace mtobj {
                 case bin: {
                     boost::archive::binary_iarchive ia(is);
                     ia >> result.d;
-                    ia >> result.c0;
+                    ia >> result.c1;
                     break;
                 }
                 case dat: {
                     boost::archive::text_iarchive ia(is);
                     ia >> result.d;
-                    ia >> result.c0;
+                    ia >> result.c1;
                     break;
                 }
                 default:
                     throw std::runtime_error("Unknown extension type for input file " + fileName);
             }
+            result.cov_type = cov_code::tensor; // this ensures I only deal with Cov1 covariance object.
             return result;
 //            Cov1 c1;
 
@@ -952,21 +953,20 @@ namespace mtobj {
 //            return result;
 //        }
         }
-        void saveDataset(std::string const &fileName, dataset const &d) {
+        void saveDataset(std::string const &fileName, dataset const &d) { // this only saves covariances in Cov1 format
             std::ofstream os(fileName);
-
             std::string extension = boost::filesystem::extension(fileName);
             switch (hashit(extension)) {
                 case bin: {
                     boost::archive::binary_oarchive oa(os);
                     oa << d.d;
-                    oa << d.c0;
+                    (d.cov_type==cov_code::real)? oa << initFrom(d.c0) : oa << d.c1;
                     break;
                 }
                 case dat: {
                     boost::archive::text_oarchive oa(os);
                     oa << d.d;
-                    oa << d.c0;
+                    (d.cov_type==cov_code::real)? oa << initFrom(d.c0) : oa << d.c1;
                     break;
                 }
                 default:

@@ -84,8 +84,7 @@ int main(int argn, char* argv[]) {
 
     auto readData = io::loadDataset(base_filename+"_rep.dat");
 
-    Cov0 cov = readData.c0;
-//    Cov1 cov;
+    Cov1 cov = (readData.cov_type==io::cov_code::real)? initFrom(readData.c0) : readData.c1;
     Dataset d = readData.d;
     model m;
 
