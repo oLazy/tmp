@@ -50,6 +50,21 @@ namespace mtobj {
 
     typedef std::map<double, double> Cov0;
     typedef std::map<double, MTTensor> Cov1;
+
+    //refactoring step to get rid of Cov0
+    /**
+     * utility function to use only Cov1 object to store covariances. It maps Cov0 values into Cov1. Unit tested.
+     * @param cov0 Covariance with one value per all the tensor components
+     * @return Covariance with a (real) variance value for each component
+     */
+    Cov1 initFrom(Cov0 const& cov0){
+        Cov1 result;
+        for (auto it : cov0){
+            auto variance = it.second;
+            result[it.first] = {{variance,0}, {variance,0}, {variance,0}, {variance,0}};
+        }
+        return result;
+    }
     typedef std::map<double, MTTensor> Dataset;
     MTComplex static constexpr ic{0, 1};
     double static constexpr pi{M_PI};
