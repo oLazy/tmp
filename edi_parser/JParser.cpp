@@ -48,6 +48,9 @@ namespace MTparser {
                                 if (datasetName[0]=='z'||datasetName[0]=='Z') {
                                     dataBlock[datasetName][j].push_back(stod(ti->text));
                                 }
+                                else if (datasetName[0]=='r'||datasetName[0]=='R'){
+                                    dataBlock[datasetName][j].push_back(stod(ti->text));
+                                }
                                 ti++;
                             }
 //                            std::cout << "\n";

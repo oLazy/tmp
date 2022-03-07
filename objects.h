@@ -378,6 +378,7 @@ namespace mtobj {
                 for (int p = paramType::begin; p != paramType::end; p++) {
                     if (x.params[p].isActive()) {
                         if (x.params[p].getValue() < prior[p].first || x.params[p].getValue() > prior[p].second) {
+//                            std::cout << x.params[p].getValue() << " " << prior[p].first << " " << prior[p].second << " " << p << "\n";
                             return false;
                         }
                     } // only check for active parameter, the inactive parameters are set to nan.
@@ -846,6 +847,11 @@ namespace mtobj {
         };
 
         model load(std::string const &fileName) {
+            if(boost::filesystem::is_regular_file(fileName)){
+                std::cout << "Reading model from " << fileName <<"\n";
+            }else{
+                throw std::runtime_error(fileName+" not found.\n");
+            }
             std::ifstream is(fileName);
             model result;
             std::string extension = boost::filesystem::extension(fileName);
@@ -1392,6 +1398,34 @@ namespace gp_utils{
             }
         }
         file.close();
+    }
+
+    /// write histogram data to disk to be used with gnuplot script
+    /// \param filename filename
+    /// \param n_h_bins
+    /// \param normalize
+    template<class T>
+    void d1hist2disk(T const &hist, std::string const& filename, unsigned normalize=1){
+
+        int const numWidth{16};
+        char const separator{' '};
+        std::vector<double> hist_x, hist_y;
+        std::ofstream hist_out;
+        double lower, upper;
+        hist_y.push_back(0);
+        hist_x.push_back(hist.axis().bin(0).lower());
+        for (auto &&x : boost::histogram::indexed(hist)) {
+            hist_y.push_back(*x);
+            hist_x.push_back(x.bin(0).lower());
+            hist_y.push_back(*x);
+            hist_x.push_back(x.bin(0).upper());
+        }
+        hist_y.push_back(0);
+        hist_x.push_back(hist_x[hist_x.size()-1]);
+        hist_out.open(filename, std::ios_base::trunc);
+        for (auto i = 0; i< hist_x.size(); i++){
+            hist_out << std::left << std::setw(numWidth) << std::setfill(separator) << hist_x[i] << "\t" << hist_y[i]/double(normalize) << "\n";
+        }
     }
 }
 #endif //MT1DANISMODELPARAMS_OBJECTS_H

@@ -42,11 +42,13 @@ int main(int argc, char* argv[]){
 
     const double stdev=vm["std_dev"].as<double>();
     auto model_file = vm["model-filename"].as<std::string>();
+    auto file_name_base = vm["model-filename"].as<std::string>();
+
 //    std::ifstream is;
 //    is.open(model_file);
 
 //    boost::archive::binary_iarchive ia(is);
-    std::string out_f = model_file.replace(model_file.length()-4,4,"_rep.dat");
+    std::string out_f = file_name_base.replace(file_name_base.length()-4,4,"_rep.dat");
 //    std::cout << out_f << "\n";
     std::string out_file_name{out_f};
 //    boost::archive::text_iarchive ia(is);

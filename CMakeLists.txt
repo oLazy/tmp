@@ -55,8 +55,8 @@ endif()
 add_subdirectory(edi_parser)
 add_subdirectory(Boost_tests)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer")
-#set(GCC_COVERAGE_COMPILE_FLAGS "-O3")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer")
+set(GCC_COVERAGE_COMPILE_FLAGS "-O3")
 
 #add_executable(mt1danisModelParams main.cpp objects.h MTTensor.cpp)
 #add_executable(doTest some_tests.cpp objects.h MTTensor.cpp)
@@ -68,6 +68,7 @@ add_executable(MTSampler sampler.cpp objects.h MTTensor.cpp)
 add_executable(MTPlotFit pf.cpp objects.h MTTensor.cpp)
 add_executable(edi2bin edi2bin.cpp MTTensor.cpp)
 add_executable(j2bin j2bin.cpp MTTensor.cpp)
+add_executable(build_plot_data build_plot_data.cpp MTTensor.cpp)
 
 
 #target_include_directories(mt1danisModelParams PUBLIC ${Boost_INCLUDE_DIRS})
@@ -80,6 +81,7 @@ target_include_directories(MTSampler PUBLIC ${Boost_INCLUDE_DIRS})
 target_include_directories(MTPlotFit PUBLIC ${Boost_INCLUDE_DIRS})
 target_include_directories(edi2bin PUBLIC ${Boost_INCLUDE_DIRS})
 target_include_directories(j2bin PUBLIC ${Boost_INCLUDE_DIRS})
+target_include_directories(build_plot_data PUBLIC ${Boost_INCLUDE_DIRS})
 #target_link_libraries(mt1danisModelParams PUBLIC
 #	Boost_iostreams
 #	Boost_system
@@ -152,6 +154,17 @@ target_link_libraries(j2bin PUBLIC
 		Boost_timer
 		Boost_chrono
 		Boost_program_options)
+
+
+target_link_libraries(build_plot_data PUBLIC
+		Boost_iostreams
+		Boost_system
+		Boost_serialization
+		Boost_filesystem
+		Boost_timer
+		Boost_chrono
+		Boost_program_options)
+
 
 #if (OpenMP_CXX_FOUND)
 #    message("FOUND OMP")

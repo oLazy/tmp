@@ -11,9 +11,10 @@
 namespace MTparser {
     using namespace std;
     typedef map<string,double> Information_Block;
-    typedef array<vector<double>,5> Data_Table;
+    typedef array<vector<double>,9> Data_Table;
     typedef map<string,Data_Table> Data_Block; // map from string to a table of 5 columns
     enum dataMap{begin = 0, period = 0, real = 1, imag = 2, error = 3, weight = 4, end = 5};
+    enum dataMapApp{begin_a = 0, period_a = 0, rho = 1, pha = 2, rhomax = 3, rhomin = 4, phamax = 5, phamin = 6, wrho = 7, wpha = 8, end_a = 9};
 
     class Parser {
     public:

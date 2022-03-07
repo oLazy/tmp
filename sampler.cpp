@@ -84,17 +84,19 @@ int main(int argn, char* argv[]) {
 
     auto readData = io::loadDataset(base_filename+"_rep.dat");
 
+
     Cov0 cov = readData.c0;
 //    Cov1 cov;
     Dataset d = readData.d;
-    model m;
+    model m = io::load(vm["m0-filename"].as<std::string>());
 
 
 
-    m.nodes.push_back({0,-1});
+//    m.nodes.push_back({0,-1});
     model ml_model; // {MAXIMUM LIKELIHOOD MODEL}
     if(!m.isInPrior()){
         std::cerr << "model 0 not in prior\n";
+        std::cerr << m << "\n";
         return 17;
     }
     m.calc_params();
@@ -160,10 +162,12 @@ int main(int argn, char* argv[]) {
     auto h_anis2 = boost::histogram::make_histogram(anisax);
 
     //================================================================================================================
-    auto ni_ax = boost::histogram::axis::regular<>(max_interfaces,1,max_interfaces,"interfaces");
+    auto ni_ax = boost::histogram::axis::regular<>(max_interfaces,1-0.5,max_interfaces+0.5,"interfaces");
     auto h_n_inter = boost::histogram::make_histogram(ni_ax); // TODO: update this histogram to save k in spite of #interfaces
     //================================================================================================================//
 
+//    std::cout << "hist: " << h_n_inter.axis().bin(0).lower() << "\n";
+//    return 0;
 
     auto t0 = Clock::now();
     boost::timer::cpu_timer timer;
@@ -383,11 +387,15 @@ int main(int argn, char* argv[]) {
             hll_file << 0.5 * (x.bin(0).lower() + x.bin(0).upper()) << " " << *x << "\n";
         }
         hll_file.close();
+
         for (auto &&x : boost::histogram::indexed(h_n_inter)) {
             hin_file << 0.5 * (x.bin(0).lower() + x.bin(0).upper()) << " " << *x << "\n";
         }
         hin_file.close();
-    }
+
+        gp_utils::d1hist2disk(h_n_inter, base_filename+"histogram_test.res");
+
+        }
     // OUTPUT ML MODEL
     gp_utils::model2disk(ml_model, paramType::sigmaMean, prior, "ml_sigma_mean.res");
     gp_utils::model2disk(ml_model, paramType::sigmaRatio, prior, "ml_sigma_ratio.res");
