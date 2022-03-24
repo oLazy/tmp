@@ -49,8 +49,11 @@ set_target_properties(Boost_program_options PROPERTIES
 #											#
 find_package(OpenMP)
 if (OpenMP_CXX_FOUND)
-	#add_compile_definitions(_OMP=1)
-	#	add_definitions(-D_OMP=1)
+	add_compile_definitions(_OMP=1)
+	add_definitions(-D_OMP=1)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+	message("OpenMP FOUND")
+
 endif()
 add_subdirectory(edi_parser)
 add_subdirectory(Boost_tests)

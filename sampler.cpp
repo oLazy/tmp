@@ -21,7 +21,17 @@ enum class SamplerStatus{burn_in, sampling, convergence};
 #define _RJMCMCFUNC
 
 int main(int argn, char* argv[]) {
+    unsigned team_size = 1;
+#ifdef _OMP
+#pragma omp parallel
+    team_size = omp_get_num_threads();
+    {   if(omp_get_thread_num() == 0) { // only thread 0 print info
 
+            std::cout << "running in parallel with OpenMP, using " << team_size << " threads.\n";
+        }
+    }
+
+#endif
     if (!handle_blocking_program_options(argn, argv))return 0;
     std::string base_filename{vm["base-filename"].as<std::string>().c_str()};
 
@@ -37,7 +47,8 @@ int main(int argn, char* argv[]) {
 //
     SamplerStatus status{SamplerStatus::burn_in}; // begin from random walk optimization
     std::cout << base_filename << std::endl;
-    std::cout << "Data-file test: " << boost::filesystem::is_regular_file(base_filename+"_rep.dat") << "\n";
+    auto data_file = vm["data-filename"].as<std::string>();
+    std::cout << "Data-file test: " << boost::filesystem::is_regular_file(data_file) << "\n";
     const int max_interfaces{vm["n-interface-max"].as<int>()};
     const int n_sigma_bins{vm["n-sigma-bins"].as<int>()};
     const int n_z_bins{vm["n-z-bins"].as<int>()};
@@ -82,14 +93,21 @@ int main(int argn, char* argv[]) {
                  vm["proposal-scale"].as<double>());
 
 
-    auto readData = io::loadDataset(base_filename+"_rep.dat");
+
+    auto readData = io::loadDataset(data_file);
 
 
-    Cov0 cov = readData.c0;
-//    Cov1 cov;
+//    Cov0 cov = readData.c0;
+    Cov1 cov;
+    (readData.cov_type==mtobj::io::cov_code::tensor)?cov=readData.c1:cov= initFrom(readData.c0);
+    for (auto k : cov){
+        std::cout << k.first << "; " << k.second << "\n";
+    }
     Dataset d = readData.d;
     model m = io::load(vm["m0-filename"].as<std::string>());
-
+    auto m0_file_path = boost::filesystem::path(vm["m0-filename"].as<std::string>());
+    auto m0_file_dir = m0_file_path.parent_path();
+    auto m_star_file_name = m0_file_dir.append("m_star.bin");
 
 
 //    m.nodes.push_back({0,-1});
@@ -99,6 +117,7 @@ int main(int argn, char* argv[]) {
         std::cerr << m << "\n";
         return 17;
     }
+    m.sort_nodes();
     m.calc_params();
     m.setLogL(mtobj::logL(m, d, cov));
     std::vector<model> chains; // chain set. After initialization chain set dimension shall be n_temp + 1
@@ -299,6 +318,9 @@ int main(int argn, char* argv[]) {
                 std::cout << "reached iter: " << itern << " in " <<
                           std::chrono::duration_cast<std::chrono::seconds>(t1 - t0).count() << " seconds. " <<
                           "log(L) = " << m.logL << ". Best log(L) till now = " << ml_model.logL << "\n";
+                //save the best fitting model. This is useful to restart the algorithm in case of crashes.
+
+                io::save(ml_model,m_star_file_name.string());
             }
 
         } // done  one iter for all chains
@@ -403,7 +425,7 @@ int main(int argn, char* argv[]) {
 
     std::cout << "time spent in log(L) subroutine: " << timer.format() << "\n";
 #ifdef _OMP
-    std::cout << "program run in parallel with OMP using a team of 4 threads.\n";
+    std::cout << "program run in parallel with OMP using a team of " << team_size << " threads.\n";
 #else
     std::cout << "program run serial on single thread.\n";
 #endif

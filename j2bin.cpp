@@ -14,6 +14,8 @@
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/serialization/map.hpp>
 #include <cmath>
+#include "objects.h"
+#include "global.h"
 
 std::string getFileContents(std::ifstream&);
 boost::program_options::options_description parse_cmdline(int argc, char *argv[], boost::program_options::variables_map& p_vm);
@@ -39,7 +41,7 @@ int main(int argn, char* argv[]){
 
     auto out_f = boost::filesystem::change_extension(pathObject.filename(),".bin");
     auto dest = boost::filesystem::change_extension(pathObject.filename(),".bin");
-    auto out_file_name = outPathObject.relative_path().append(dest.string()).string();;
+    auto out_file_name = outPathObject.append(dest.string()).string();;
     std::cout << "output path: " << outPathObject.string() << std::endl;
     std::cout << "handling file: " << fname << "\n";
     std::cout << "output file: " << out_file_name << std::endl;
@@ -86,13 +88,25 @@ int main(int argn, char* argv[]){
 
         dataset[freq] = z;
         covariance[freq] = zv;
+        std::cout << "T: " << freq << "; z: " << z << "\n";
     }
+    try {
+        // save tensors and periods
 
-    // save tensors and periods
-    std::ofstream os(out_file_name);
-    boost::archive::binary_oarchive oa(os);
-    oa << dataset << covariance;
-    os.close();
+//    std::ofstream os(out_file_name);
+        mtobj::io::dataset dataset1;
+        dataset1.d = dataset;
+        dataset1.cov_type = mtobj::io::cov_code::tensor;
+        dataset1.c1 = covariance;
+        mtobj::io::saveDataset(out_file_name, dataset1);
+//    boost::archive::binary_oarchive oa(os);
+//    oa << dataset << covariance;
+//    os.close();}
+    }
+    catch (std::exception &e){
+        std::cerr << e.what() << "\n";
+        return 1;
+    }
     return 0;
 }
 

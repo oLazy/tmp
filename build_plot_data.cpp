@@ -20,14 +20,14 @@ int main(int argc, char* argv[]){
     };
     // create output folder
     std::cout << out << "\n";
-    if (is_directory(out))std::cout << out << " created!\n";
-    const unsigned n_z_bins = 512;
-    const unsigned n_sm_bins = 64;
+    if (is_directory(out))std::cout << out << " exists!\n";
+    const unsigned n_z_bins = 4096;
+    const unsigned n_sm_bins = 512;
     auto z = axis::regular<>(n_z_bins,0,300000,"depth");
-    auto sm = axis::regular<>(n_sm_bins, -5, 2, "sigma_mean");
-    auto sr = axis::regular<>(n_sm_bins, -3, 0, "sigma_ratio");
+    auto sm = axis::regular<>(n_sm_bins, -8, 2, "sigma_mean");
+    auto sr = axis::regular<>(n_sm_bins, -6, 0, "sigma_ratio");
     auto bs = axis::regular<>(180, -90, 90, "angle");
-
+    auto logl = axis::regular<>(21,920.297-(2*920.297),920.297+(2*920.297),"logL");
 
     std::string extension = boost::filesystem::extension(fileName);
     if (extension != ".bin") throw std::runtime_error("only binary files accepted.\n");
@@ -41,6 +41,7 @@ int main(int argc, char* argv[]){
     auto sigma_mean_histogram = make_histogram(sm, z);
     auto sigma_ratio_histogram = make_histogram(sr, z);
     auto beta_strike_histogram = make_histogram(bs, z);
+    auto logl_histogram = make_histogram(logl);
     while (!done) {
         try {
             ia >> model;
@@ -60,6 +61,8 @@ int main(int argc, char* argv[]){
                 sigma_mean_histogram(model.getNode(depth).params[mtobj::paramType::sigmaMean].getValue(), depth);
 
             }
+
+            logl_histogram(model.logL);
         }
         catch (boost::archive::archive_exception &e){
             std::cout << "catch exception " << e.what() <<"\n";
@@ -74,7 +77,7 @@ int main(int argc, char* argv[]){
     }
 
     gp_utils::d1hist2disk(anis_histogram, out.append("anis_prob.dat").string(), m_read);
-    std::cout << "writing info on " << out.parent_path().append("interf_prob.dat").string() << "\n";
+    gp_utils::d1hist2disk(logl_histogram, out.parent_path().append("logl_hist.dat").string(), false);
     gp_utils::d1hist2disk(interf_histogram, out.parent_path().append("interf_prob.dat").string(), m_read);
     gp_utils::d2hist2disk(sigma_mean_histogram, out.parent_path().append("sigma_mean.dat").string(), n_sm_bins, true);
     gp_utils::d2hist2disk(sigma_ratio_histogram, out.parent_path().append("sigma_ratio.dat").string(), n_sm_bins, true);

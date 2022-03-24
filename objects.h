@@ -611,7 +611,6 @@ namespace mtobj {
                     b.params.at(paramType::depth).getValue()
             );
         };
-//        std::sort(m1.nodes.begin(), m1.nodes.end(), comp); // TODO TEST THIS ACTUALLY RETURNS m1 SORTED PROPERLY
         m1.sort_nodes();
         return m1;
     }
@@ -904,6 +903,133 @@ namespace mtobj {
                 case bin: {
                     boost::archive::binary_iarchive ia(is);
                     ia >> result.d;
+                    ia >> result.c1;
+                    result.cov_type = mtobj::io::cov_code::tensor;
+                    break;
+                }
+                case dat: {
+                    boost::archive::text_iarchive ia(is);
+                    ia >> result.d;
+                    ia >> result.c1;
+                    result.cov_type = mtobj::io::cov_code::tensor;
+                    break;
+                }
+                default:
+                    throw std::runtime_error("Unknown extension type for input file " + fileName);
+            }
+            return result;
+        }
+
+        void saveDataset(std::string const &fileName, dataset const &d) {
+            std::ofstream os(fileName);
+
+            std::string extension = boost::filesystem::extension(fileName);
+            switch (hashit(extension)) {
+                case bin: {
+                    boost::archive::binary_oarchive oa(os);
+                    oa << d.d;
+                    Cov1 cov;
+                    (d.cov_type == mtobj::io::cov_code::tensor)?cov=d.c1:cov= initFrom(d.c0);
+                    oa << cov;
+                    oa << mtobj::io::cov_code::tensor;
+                    break;
+                }
+                case dat: {
+                    boost::archive::text_oarchive oa(os);
+                    oa << d.d;
+                    Cov1 cov;
+                    (d.cov_type == mtobj::io::cov_code::tensor)?cov=d.c1:cov= initFrom(d.c0);
+                    oa << cov;
+                    oa << mtobj::io::cov_code::tensor;
+                    break;
+                }
+                default:
+                    throw std::runtime_error("Unknown extension type for output file " + fileName);
+            }
+        }
+
+
+    }
+    /*
+    namespace io {
+        enum class cov_code {
+            real, tensor, null
+        };
+        enum ext_code {
+            bin, dat, null
+        };
+
+        ext_code hashit(std::string const &ins) {
+            if (ins == ".bin") return ext_code::bin;
+            if (ins == ".dat") return ext_code::dat;
+            return ext_code::null;
+        }
+
+        struct dataset {
+            Dataset d;
+            Cov0 c0;
+            Cov1 c1;
+            cov_code cov_type{cov_code::null};
+        };
+
+        model load(std::string const &fileName) {
+            if(boost::filesystem::is_regular_file(fileName)){
+                std::cout << "Reading model from " << fileName <<"\n";
+            }else{
+                throw std::runtime_error(fileName+" not found.\n");
+            }
+            std::ifstream is(fileName);
+            model result;
+            std::string extension = boost::filesystem::extension(fileName);
+            switch (hashit(extension)) {
+                case bin: {
+                    boost::archive::binary_iarchive ia(is);
+                    ia >> result;
+                    break;
+                }
+                case dat: {
+                    boost::archive::text_iarchive ia(is);
+                    ia >> result;
+                    break;
+                }
+                default:
+                    throw std::runtime_error("Unknown extension type for input file " + fileName);
+            }
+            return result;
+        }
+
+        void save(model const &m, std::string const &fileName) {
+            std::ofstream os(fileName);
+            std::string extension = boost::filesystem::extension(fileName);
+            switch (hashit(extension)) {
+                case bin: {
+                    boost::archive::binary_oarchive oa(os);
+                    oa << m;
+                    break;
+                }
+                case dat: {
+                    boost::archive::text_oarchive oa(os);
+                    oa << m;
+                    break;
+                }
+                default:
+                    throw std::runtime_error("Unknown extension type for output file " + fileName);
+            }
+        }
+
+        dataset loadDataset(std::string const &fileName) {
+
+            dataset result;
+            Dataset d;
+            Cov0 c0;
+            std::ifstream is(fileName);
+            std::cout << "this is the actual file name: " << fileName << "\n";
+
+            std::string extension = boost::filesystem::extension(fileName);
+            switch (hashit(extension)) {
+                case bin: {
+                    boost::archive::binary_iarchive ia(is);
+                    ia >> result.d;
                     ia >> result.c0;
                     break;
                 }
@@ -982,6 +1108,7 @@ namespace mtobj {
 
 
     }
+     */
     typedef boost::circular_buffer<model> Buffer;
 }
 namespace rjmcmc {
