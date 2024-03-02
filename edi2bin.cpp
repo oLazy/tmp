@@ -11,7 +11,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/serialization/map.hpp>
-#include <math.h>
+#include <cmath>
 
 std::string getFileContents(std::ifstream&);
 boost::program_options::options_description parse_cmdline(int argc, char *argv[], boost::program_options::variables_map& p_vm);
