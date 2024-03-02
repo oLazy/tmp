@@ -18,7 +18,7 @@ boost::program_options::options_description parse_cmdline(int argc, char *argv[]
 typedef std::map<double, MTTensor> cov1; // diagonal covariance matrix which allows different errors for different Z components
 
 
-using namespace MTparser;
+using namespace MTedi_parser;
 int main(int argn, char* argv[]){
     boost::program_options::variables_map vm;
     auto desc = parse_cmdline(argn, argv, vm);
@@ -52,22 +52,22 @@ int main(int argn, char* argv[]){
     Parser p;
     p.parse(fileContents);
     auto skip_string = p.get_option_list_for(">HEAD")["EMPTY"];
-    auto freq = MTparser::dataset2double(p.get_data_set_for(">FREQ"), skip_string);
+    auto freq = dataset2double(p.get_data_set_for(">FREQ"), skip_string);
     // OFF-DIAG
-    auto zxyr = MTparser::dataset2double(p.get_data_set_for(">ZXYR"), skip_string);
-    auto zyxr = MTparser::dataset2double(p.get_data_set_for(">ZYXR"), skip_string);
-    auto zxyi = MTparser::dataset2double(p.get_data_set_for(">ZXYI"), skip_string);
-    auto zyxi = MTparser::dataset2double(p.get_data_set_for(">ZYXI"), skip_string);
+    auto zxyr = dataset2double(p.get_data_set_for(">ZXYR"), skip_string);
+    auto zyxr = dataset2double(p.get_data_set_for(">ZYXR"), skip_string);
+    auto zxyi = dataset2double(p.get_data_set_for(">ZXYI"), skip_string);
+    auto zyxi = dataset2double(p.get_data_set_for(">ZYXI"), skip_string);
     // MAIN-DIAG
-    auto zxxr = MTparser::dataset2double(p.get_data_set_for(">ZXXR"), skip_string);
-    auto zyyr = MTparser::dataset2double(p.get_data_set_for(">ZYYR"), skip_string);
-    auto zxxi = MTparser::dataset2double(p.get_data_set_for(">ZXXI"), skip_string);
-    auto zyyi = MTparser::dataset2double(p.get_data_set_for(">ZYYI"), skip_string);
+    auto zxxr = dataset2double(p.get_data_set_for(">ZXXR"), skip_string);
+    auto zyyr = dataset2double(p.get_data_set_for(">ZYYR"), skip_string);
+    auto zxxi = dataset2double(p.get_data_set_for(">ZXXI"), skip_string);
+    auto zyyi = dataset2double(p.get_data_set_for(">ZYYI"), skip_string);
 
-    auto zxyv = MTparser::dataset2double(p.get_data_set_for(">ZXY.VAR"), skip_string);
-    auto zyxv = MTparser::dataset2double(p.get_data_set_for(">ZYX.VAR"), skip_string);
-    auto zxxv = MTparser::dataset2double(p.get_data_set_for(">ZXX.VAR"), skip_string);
-    auto zyyv = MTparser::dataset2double(p.get_data_set_for(">ZYY.VAR"), skip_string);
+    auto zxyv = dataset2double(p.get_data_set_for(">ZXY.VAR"), skip_string);
+    auto zyxv = dataset2double(p.get_data_set_for(">ZYX.VAR"), skip_string);
+    auto zxxv = dataset2double(p.get_data_set_for(">ZXX.VAR"), skip_string);
+    auto zyyv = dataset2double(p.get_data_set_for(">ZYY.VAR"), skip_string);
 
     int i = 0;
     double conversion_factor{1};

@@ -8,7 +8,7 @@
 #include <map>
 #include <tuple>
 
-namespace MTparser {
+namespace MTedi_parser {
     using namespace std;
     typedef vector<string> Data_set;
     typedef map<string ,string > Option_list;

@@ -5,7 +5,7 @@
 #include "Parser.h"
 #include <cmath>
 
-namespace MTparser {
+namespace MTedi_parser {
     void Parser::parse(vector<Token> &t){
         for(auto ti = t.begin(); ti != t.end();ti++){
             data_block(ti);

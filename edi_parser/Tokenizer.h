@@ -6,7 +6,7 @@
 #define MTPARSER_TOKENIZER_H
 #include <string>
 #include <vector>
-namespace MTparser {
+namespace MTedi_parser {
     using namespace std;
     enum TokenType {
         WHITESPACE,

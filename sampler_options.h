@@ -133,5 +133,6 @@ int handle_blocking_program_options(int argn, char* argv[]){
     if(isBuildingConfig) {
         return generate_configuration_file(vm);
     }
+    return 0;
 }
 #endif //MT1DANISMODELPARAMS_SAMPLER_OPTIONS_H

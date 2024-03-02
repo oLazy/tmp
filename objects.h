@@ -276,6 +276,34 @@ namespace mtobj {
                                                 beta);
         }
 
+        bool isIso() const {
+            bool result;
+            ( this->params.at(sigmaRatio).isActive() ) ? result = false : result = true;
+            return result;
+        }
+        double getSigmaHigh() const{
+            double sm = pow(10., params.at(paramType::sigmaMean).getValue()); // 10^param, sampling in log space
+            double sr{1};
+            if (params.at(paramType::sigmaRatio).isActive()) {
+                sr = pow(10., params.at(paramType::sigmaRatio).getValue()); // 10^param, sampling in log space
+            }
+            double result;
+            (this->isIso()) ? result = sm : result = 2 * sm / (1. + sr);
+            return result;
+        }
+        double getSigmaLow() const{
+            double sm = pow(10., params.at(paramType::sigmaMean).getValue()); // 10^param, sampling in log space
+            double sr{1};
+            if (params.at(paramType::sigmaRatio).isActive()) {
+                sr = pow(10., params.at(paramType::sigmaRatio).getValue()); // 10^param, sampling in log space
+            }
+            double result;
+            (this->isIso()) ? result = sm : result = 2 * sm * sr / (1. + sr);
+            return result;
+        }
+        double getBetaStrike() const{
+            return params.at(paramType::beta).getValue()*M_PI/180.;
+        }
     private:
         friend boost::serialization::access;
 
@@ -448,6 +476,76 @@ namespace mtobj {
             }
         }
 
+        MTTensor compute_impedance_at_the_basement_top(double period, node const * node_p) const { // tested, works
+            double sigma_hi = node_p->getSigmaHigh();
+            double sigma_lo = node_p->getSigmaLow();
+            double beta_s = node_p->getBetaStrike();
+            dcomp k0{(1.0 - ic) * 2. * pi * pow(10., -3.) / sqrt(10. * period)};
+            double a1is = 1. / sqrt(sigma_hi);
+            double a2is = 1. / sqrt(sigma_lo);
+            MTTensor z_rot{{0,0},{k0 * a1is},{-k0 * a2is},{0,0}};
+            MTTensor result = rot_z(z_rot, -beta_s); // this rotates the tensor in the original space.
+            return result;
+        }
+
+        MTTensor propagate_impedance_one_layer_up(MTTensor z, double period, node const * node_p, node const * node1_p) const {
+            double sm = node_p->params.at(sigmaMean).getValue();
+            double a1, a2, bs;
+
+            if (node_p->isIso()){
+                a1 = node_p->getSigmaHigh();
+                a2 = a1;
+            }else{
+                a1 = node_p->getSigmaHigh();
+                a2 = node_p->getSigmaLow();
+                bs = node_p->getBetaStrike();
+            }
+            double hd = std::abs(node_p->params.at(paramType::depth).getValue() -
+                                 node1_p->params.at(paramType::depth).getValue());
+            dcomp det_z = z.det();
+            dcomp k0{(1.0 - ic) * 2. * pi * pow(10., -3.) / sqrt(10. * period)};
+
+            dcomp k1 = k0 * sqrt(a1);
+            dcomp k2 = k0 * sqrt(a2);
+            double a1is = 1. / sqrt(a1);
+            double a2is = 1. / sqrt(a2);
+            dcomp dz1 = k0 * a1is;
+            dcomp dz2 = k0 * a2is;
+            dcomp ag1 = k1 * hd;
+            dcomp ag2 = k2 * hd;
+            if(!node_p->isIso()) z= rot_z(z, bs);
+            dcomp z_denominator = det_z * dfm(ag1) * dfm(ag2) / (dz1 * dz2) +
+                                  z.xy * dfm(ag1) * dfp(ag2) / dz1 -
+                                  z.yx * dfp(ag1) * dfm(ag2) / dz2 +
+                                  dfp(ag1) * dfp(ag2);
+            z.xx = 4. * z.xx * std::exp(-ag1 - ag2) / z_denominator;
+            z.xy = (z.xy * dfp(ag1) * dfp(ag2) -
+                    z.yx * dfm(ag1) * dfm(ag2) * dz1 / dz2 +
+                    det_z * dfp(ag1) * dfm(ag2) / dz2 +
+                    dfm(ag1) * dfp(ag2) * dz1) / z_denominator;
+            z.yx = (z.yx * dfp(ag1) * dfp(ag2) -
+                    z.xy * dfm(ag1) * dfm(ag2) * dz2 / dz1 -
+                    det_z * dfm(ag1) * dfp(ag2) / dz1 -
+                    dfp(ag1) * dfm(ag2) * dz2) / z_denominator;
+            z.yy = 4. * z.yy * std::exp(-ag1 - ag2) / z_denominator;
+            if(!node_p->isIso()) z= rot_z(z, -bs);
+            return z;
+        }
+
+        MTTensor myOperator(const double  &x) const noexcept{
+            MTTensor result;
+            for (auto n=this->nodes.rbegin(); n!=this->nodes.rend();n++){
+//                std::cout << (*n).isIso() << std::endl;
+                if (n==nodes.crbegin()) {
+                    result = compute_impedance_at_the_basement_top(x, &(*n));
+                } else {
+                    const node *this_node = &(*n);
+                    const node *node_below = &(*std::prev(n));
+                    result = propagate_impedance_one_layer_up(result, x, this_node, node_below);
+                }
+            }
+            return result;
+        }
         MTTensor operator()(const double &x) const noexcept { // pek algorithm, my implementation. TESTED
 
             dcomp k0{(1.0 - ic) * 2. * pi * pow(10., -3.) / sqrt(10. * x)};
@@ -483,6 +581,7 @@ namespace mtobj {
                 return z;
             }
 
+            // z = compute_impedance_at_the_basement_top()
             double bs_ref = bs;
 
 
@@ -503,7 +602,7 @@ namespace mtobj {
                  c> the current anisotropy strike
                  c
                  */
-                dcomp dt_z_bot = z_rot.xx * z_rot.yy - z_rot.xy * z_rot.yx;
+                dcomp dt_z_bot = z_rot.det();//z_rot.xx * z_rot.yy - z_rot.xy * z_rot.yx;
                 if (bs != bs_ref && a1 != a2) {
                     z_bot = rot_z(z_rot, bs - bs_ref);
 
@@ -890,6 +989,7 @@ namespace mtobj {
                 default:
                     throw std::runtime_error("Unknown extension type for input file " + fileName);
             }
+            result.calc_params();
             return result;
         }
 
@@ -1337,6 +1437,83 @@ namespace cvt { // convergence tools
     }
 }
 namespace gp_utils{
+    template<typename T>
+    void print_element(T t, const int& width, std::ostream &os, const char separator=' '){
+        os << std::left << std::setw(width) << std::setfill(separator) << t;
+    }
+    void dataset2disk(mtobj::Dataset d, std::ostream &os, bool print_header=false) {
+        if (print_header) {
+            print_element("# Period", 15, os);
+            print_element("Re(xx)", 15, os);
+            print_element("Im(xx)", 15, os);
+            print_element("Re(xy)", 15, os);
+            print_element("Im(xy)", 15, os);
+            print_element("Re(yx)", 15, os);
+            print_element("Im(yx)", 15, os);
+            print_element("Re(yy)", 15, os);
+            print_element("Im(yy)", 15, os);
+        }
+        os << std::endl;
+        os << std::setprecision(2) << std::scientific;
+        for (auto dp: d) {
+            print_element(dp.first, 15, os);
+            print_element(std::real(dp.second.xx), 15, os);
+            print_element(std::imag(dp.second.xx), 15, os);
+            print_element(std::real(dp.second.xy), 15, os);
+            print_element(std::imag(dp.second.xy), 15, os);
+            print_element(std::real(dp.second.yx), 15, os);
+            print_element(std::imag(dp.second.yx), 15, os);
+            print_element(std::real(dp.second.yy), 15, os);
+            print_element(std::imag(dp.second.yy), 15, os);
+            os << std::endl;
+        }
+    }
+
+    void dataset2disk(mtobj::io::dataset d, std::ostream &os, bool print_header=false) {
+        std::cout << "printing dataset on disk. This shall print the covariances as well.\n";
+        if (print_header) {
+            print_element("# Period", 15, os);
+            print_element("Re(xx)", 15, os);
+            print_element("Im(xx)", 15, os);
+            print_element("Re(xy)", 15, os);
+            print_element("Im(xy)", 15, os);
+            print_element("Re(yx)", 15, os);
+            print_element("Im(yx)", 15, os);
+            print_element("Re(yy)", 15, os);
+            print_element("Im(yy)", 15, os);
+            print_element("sRe(xx)", 15, os);
+            print_element("sIm(xx)", 15, os);
+            print_element("sRe(xy)", 15, os);
+            print_element("sIm(xy)", 15, os);
+            print_element("sRe(yx)", 15, os);
+            print_element("Im(yx)", 15, os);
+            print_element("sRe(yy)", 15, os);
+            print_element("sIm(yy)", 15, os);
+        }
+        os << std::endl;
+        os << std::setprecision(2) << std::scientific;
+        for (auto dp: d.d) {
+            print_element(dp.first, 15, os);
+            print_element(std::real(dp.second.xx), 15, os);
+            print_element(std::imag(dp.second.xx), 15, os);
+            print_element(std::real(dp.second.xy), 15, os);
+            print_element(std::imag(dp.second.xy), 15, os);
+            print_element(std::real(dp.second.yx), 15, os);
+            print_element(std::imag(dp.second.yx), 15, os);
+            print_element(std::real(dp.second.yy), 15, os);
+            print_element(std::imag(dp.second.yy), 15, os);
+            print_element(std::sqrt(std::real(d.c1[dp.first].xx)), 15, os);
+            print_element(std::sqrt(std::real(d.c1[dp.first].xx)), 15, os);
+            print_element(std::sqrt(std::real(d.c1[dp.first].xy)), 15, os);
+            print_element(std::sqrt(std::real(d.c1[dp.first].xy)), 15, os);
+            print_element(std::sqrt(std::real(d.c1[dp.first].yx)), 15, os);
+            print_element(std::sqrt(std::real(d.c1[dp.first].yx)), 15, os);
+            print_element(std::sqrt(std::real(d.c1[dp.first].yy)), 15, os);
+            print_element(std::sqrt(std::real(d.c1[dp.first].yy)), 15, os);
+            os << std::endl;
+        }
+    }
+
     void model2disk(mtobj::model m, int paramType, mtobj::Prior const &prior,std::string const & filename){
         std::vector<double> z, sm, sr, sh, sl, bs;
         double x1, x2, y1, y2;

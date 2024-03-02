@@ -130,6 +130,11 @@ double MTTensor::meanAbsImpedance() const {
 
 }
 
+MTComplex MTTensor::det() const {
+    auto result{xx*yy - xy*yx};
+    return result;
+}
+
 MTTensor abs(MTTensor const &z) {
     return MTTensor({std::abs(z.xx),std::abs(z.xx)},
                     {std::abs(z.xy),std::abs(z.xy)},

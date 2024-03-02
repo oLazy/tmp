@@ -5,7 +5,7 @@
 #include "Tokenizer.h"
 #include <iostream>
 
-namespace MTparser{
+namespace MTedi_parser{
     using namespace std;
     vector<Token> Tokenizer::parse(const string &inString) {
         vector<Token> tokens;
