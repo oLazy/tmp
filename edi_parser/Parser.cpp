@@ -3,6 +3,9 @@
 //
 
 #include "Parser.h"
+#include <exception>
+#include <iostream>
+#include <sstream>
 #include <cmath>
 
 namespace MTparser {
